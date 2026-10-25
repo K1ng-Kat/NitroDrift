@@ -240,7 +240,7 @@ final class DrivingWorld {
     }
 
     private func createEnvironment() {
-        scene.background.contents = UIColor(red: 0.015, green: 0.024, blue: 0.055, alpha: 1)
+        scene.background.contents = CityVisuals.sky()
         scene.fogColor = UIColor(red: 0.02, green: 0.03, blue: 0.065, alpha: 1)
         scene.fogStartDistance = 150
         scene.fogEndDistance = 440
@@ -269,7 +269,7 @@ final class DrivingWorld {
         groundNode.position.y = -0.08
         scene.rootNode.addChildNode(groundNode)
 
-        let asphalt = material(UIColor(red: 0.062, green: 0.075, blue: 0.10, alpha: 1), roughness: 0.82)
+        let asphalt = CityVisuals.roadMaterial()
         let roadLines = glowMaterial(UIColor(red: 1, green: 0.79, blue: 0.30, alpha: 1), intensity: 0.30)
 
         for coordinate in stride(from: -450, through: 450, by: 150) {
@@ -285,6 +285,43 @@ final class DrivingWorld {
                        at: SCNVector3(Float(coordinate), 0.077, Float(marker)), material: roadLines)
                 addBox(width: 6.0, height: 0.012, length: 0.20,
                        at: SCNVector3(Float(marker), 0.078, Float(coordinate)), material: roadLines)
+            }
+        }
+
+        // Raised sidewalks along blocks, leaving intersections open.
+        let concrete = material(UIColor(red: 0.15, green: 0.16, blue: 0.19, alpha: 1), roughness: 0.89)
+        let curb = material(UIColor(red: 0.32, green: 0.34, blue: 0.38, alpha: 1), roughness: 0.77)
+        for road in stride(from: -450, through: 450, by: 150) {
+            for segment in stride(from: -375, through: 375, by: 150) {
+                for side in [-1.0, 1.0] {
+                    let edge = Double(road) + side * 13.25
+                    addBox(width: 2.0, height: 0.21, length: 125,
+                           at: SCNVector3(Float(edge), 0.065, Float(segment)),
+                           material: concrete)
+                    addBox(width: 0.19, height: 0.30, length: 125,
+                           at: SCNVector3(Float(Double(road) + side * 12.05), 0.09, Float(segment)),
+                           material: curb)
+                    addBox(width: 125, height: 0.21, length: 2.0,
+                           at: SCNVector3(Float(segment), 0.066, Float(edge)),
+                           material: concrete)
+                    addBox(width: 125, height: 0.30, length: 0.19,
+                           at: SCNVector3(Float(segment), 0.09, Float(Double(road) + side * 12.05)),
+                           material: curb)
+                }
+            }
+        }
+
+        let crossing = material(UIColor(red: 0.67, green: 0.70, blue: 0.73, alpha: 1), roughness: 0.78)
+        for x in [-150, 0, 150] {
+            for z in [-150, 0, 150] {
+                for stripe in -4...4 {
+                    addBox(width: 1.3, height: 0.008, length: 3.2,
+                           at: SCNVector3(Float(x) + Float(stripe) * 2.0, 0.085, Float(z) + 17.5),
+                           material: crossing)
+                    addBox(width: 3.2, height: 0.008, length: 1.3,
+                           at: SCNVector3(Float(x) + 17.5, 0.087, Float(z) + Float(stripe) * 2.0),
+                           material: crossing)
+                }
             }
         }
 
@@ -330,12 +367,29 @@ final class DrivingWorld {
             }
         }
 
+        addDistrictSign("NITRO", x: -54, y: 31, z: -47, color: .cyan)
+        addDistrictSign("MIDTOWN", x: 95, y: 37, z: -190,
+                        color: UIColor(red: 0.99, green: 0.28, blue: 0.56, alpha: 1))
+        addDistrictSign("RACING", x: -205, y: 48, z: 102,
+                        color: UIColor(red: 0.32, green: 0.78, blue: 1, alpha: 1))
+
         for x in [-450, -300, -150, 0, 150, 300, 450] {
             for z in [-450, -300, -150, 0, 150, 300, 450] {
                 addStreetLight(x: Double(x) + 14.5, z: Double(z) + 14.5)
                 addStreetLight(x: Double(x) - 14.5, z: Double(z) - 14.5)
             }
         }
+    }
+
+    private func addDistrictSign(_ title: String, x: Float, y: Float, z: Float, color: UIColor) {
+        let geometry = SCNText(string: title, extrusionDepth: 0.12)
+        geometry.font = UIFont.systemFont(ofSize: 7, weight: .black)
+        geometry.flatness = 0.30
+        geometry.firstMaterial = glowMaterial(color, intensity: 2.0)
+        let sign = SCNNode(geometry: geometry)
+        sign.position = SCNVector3(x,y,z)
+        sign.scale = SCNVector3(0.8,0.8,0.8)
+        scene.rootNode.addChildNode(sign)
     }
 
     private func addStreetLight(x: Double, z: Double) {
@@ -353,7 +407,7 @@ final class DrivingWorld {
         scene.rootNode.addChildNode(lampNode)
 
         // Lights on alternating intersections reduce the GPU cost on older iPads.
-        if Int(x + z).isMultiple(of: 3) {
+        if abs(x) < 180 && abs(z) < 180 && Int(abs(x + z)).isMultiple(of: 2) {
             let lamp = SCNLight()
             lamp.type = .omni
             lamp.intensity = 630
