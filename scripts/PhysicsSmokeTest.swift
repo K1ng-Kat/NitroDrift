@@ -65,7 +65,7 @@ struct PhysicsSmoke {
             let originalHeading = stop.heading
             var footBrake = DriverInput()
             footBrake.brake = true
-            for frame in 0..<240 {
+            for frame in 0..<480 {
                 let state = stop.step(dt: dt, input: footBrake,
                                       engine: 1, handling: 1, brakes: 0,
                                       carTier: 0, assist: true, boosting: false,
