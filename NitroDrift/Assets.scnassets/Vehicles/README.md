@@ -1,23 +1,16 @@
-# High-fidelity vehicle assets (USDZ / SCN)
+# Included (when installer succeeds) CC0 sports-car models
 
-NitroDrift supports replacing its generated car mesh with an authored PBR vehicle.
-A built-in fallback remains so that the game can run without any extra downloads.
+These original fictional models are from Grab3D, which labels them CC0 1.0:
+- StreetGT.usdz: https://grab3d.com/models/vehicles/sports-car/
+- ApexR.usdz: https://grab3d.com/models/vehicles/1990s-sports-car/
+- VortexX.usdz: https://grab3d.com/models/vehicles/1980s-sports-car/
 
-Place **StreetGT.usdz**, **ApexR.usdz**, or **VortexX.usdz** in this folder
-(\`NitroDrift/Assets.scnassets/Vehicles/\`). \`.scn\` is also accepted.
+Models are not real automaker products, and are not photogrammetry-scanned.
+Their bundled 2K PBR maps, wheel geometry and body silhouettes are more detailed
+than NitroDrift's previous primitives. Respect asset licensing if swapping them.
 
-Model requirements:
-- Units are **metres**. Length around 4.6 m, height around 1.45 m, width around 2.1 m.
-- Coordinate system: **+Y up**, **front faces -Z**, pivot at ground center.
-- Use separate wheel-pivot groups called \`wheel_fl\`, \`wheel_fr\`,
-  \`wheel_rl\`, \`wheel_rr\`, each with a direct child called \`roll\` for rotation.
-- Name paintable mesh nodes \`paint\` or \`paint_...\`.
-- Bake UVs and include PBR base color, normal, metalness/roughness and ambient
-  occlusion where licensed.
-- Export a model you own or have permission to distribute, retaining source
-  license and attribution where required.
-- Aim for a range of model LODs (e.g. a detailed high profile and lightweight
-  driving LOD), keeping textures modest on older iPhones/iPads.
-
-No third-party car models, real brands, or copyrighted textures are included.
-Import is optional and does not imply an existing high-fidelity asset is bundled.
+The binary files are installed once in GitHub Actions using
+scripts/install_cc0_cars.py. If the remote CDN is unavailable, the original
+game remains playable using the built-in modeled car, and the installer must
+be retried. Import orientation is normalized by bounding box and authored
+body meshes may not be independently recolorable unless named "paint".

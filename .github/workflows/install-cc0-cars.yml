@@ -1,0 +1,30 @@
+name: Bundle CC0 Car Models
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/install_cc0_cars.py'
+      - '.github/workflows/install-cc0-cars.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  cars:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download and validate CC0 USDZ model files
+        run: python3 scripts/install_cc0_cars.py
+      - name: Commit finished models
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add NitroDrift/Assets.scnassets/Vehicles/
+          if ! git diff --cached --quiet; then
+            git commit -m 'Bundle CC0 game-ready sports-car USDZ models'
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
