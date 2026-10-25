@@ -27,17 +27,55 @@ case "$remote" in
   "$REPO"|"https://github.com/K1ng-Kat/NitroDrift"|"git@github.com:K1ng-Kat/NitroDrift.git")
     ;;
   *)
-    printf '❌ Unexpected Git remote: %s\n' "$remote"
-    printf 'Nothing changed.\n'
+    printf '❌ Unexpected Git remote: %s\nNothing changed.\n' "$remote"
     exit 1
     ;;
 esac
 
-if [[ -n "$(git status --porcelain --untracked-files=normal)" ]]; then
-  printf '⚠️ Local changes detected. Nothing overwritten.\n'
-  git status --short
-  printf 'Commit, stash, or remove local changes before syncing.\n'
-  exit 1
+# Xcode frequently rewrites scheme metadata while you work. Preserve *only*
+# these known local settings automatically. Never auto-stash source changes.
+changes="$(git status --porcelain --untracked-files=all)"
+metadata_only=0
+if [[ -n "$changes" ]]; then
+  while IFS= read -r line; do
+    path="${line:3}"
+    case "$path" in
+      NitroDrift.xcodeproj/xcuserdata/*|NitroDrift.xcodeproj/xcshareddata/*)
+        metadata_only=1
+        ;;
+      *)
+        printf '⚠️ Local changes detected. Nothing overwritten.\n'
+        git status --short
+        printf 'Commit or stash your code changes before syncing.\n'
+        exit 1
+        ;;
+    esac
+  done <<< "$changes"
+fi
+
+saved_xcode=0
+restore_xcode() {
+  if [[ "$saved_xcode" == "1" ]]; then
+    printf '♻️ Restoring your local Xcode settings...\n'
+    if git stash pop --index; then
+      saved_xcode=0
+    else
+      saved_xcode=0
+      printf '⚠️ Could not restore Xcode settings automatically.\n'
+      printf 'Your settings are preserved in the Git stash; check: git stash list\n'
+      return 1
+    fi
+  fi
+  return 0
+}
+
+# Also attempt to restore Xcode metadata if the fetch/merge fails.
+trap 'restore_xcode || true' EXIT
+
+if [[ "$metadata_only" == "1" ]]; then
+  printf '🛡️ Preserving local Xcode scheme settings during sync...\n'
+  git stash push --include-untracked -m "nd-sync temporary Xcode settings" >/dev/null
+  saved_xcode=1
 fi
 
 printf '🔄 Fetching latest GitHub main...\n'
@@ -53,11 +91,18 @@ printf '📥 Updating local project...\n'
 git merge --ff-only origin/main
 
 if [[ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]]; then
-  printf '⚠️ Local commits differ from origin/main. Nothing overwritten.\n'
+  printf '⚠️ Local commits differ from GitHub main. Nothing overwritten.\n'
   exit 1
 fi
 
+restore_xcode
+trap - EXIT
+
 printf '\n✅ NITRODRIFT FULLY SYNCED!\n'
-printf '✅ Local matches GitHub main\n'
+if [[ "$metadata_only" == "1" ]]; then
+  printf '✅ GitHub main updated; local Xcode scheme settings preserved\n'
+else
+  printf '✅ Local matches GitHub main\n'
+fi
 printf '🔖 Commit: %s\n' "$(git rev-parse --short HEAD)"
 printf '📂 %s\n\n' "$PROJECT"
