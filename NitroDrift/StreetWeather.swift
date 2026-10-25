@@ -68,7 +68,12 @@ final class StreetWeather {
     float facing = clamp(dot(normalize(-_surface.position.xyz),
                              normalize(_surface.normal)), 0.0, 1.0);
     float schlick = 0.020 + 0.980 * pow(1.0 - facing, 5.0);
-    _surface.diffuse.a = 0.12 + schlick * 0.28;
+    float2 border = smoothstep(float2(0.0), float2(0.12),
+                               _surface.diffuseTexcoord) *
+                    (1.0 - smoothstep(float2(0.88), float2(1.0),
+                                       _surface.diffuseTexcoord));
+    float softEdge = border.x * border.y;
+    _surface.diffuse.a = (0.12 + schlick * 0.28) * softEdge;
     """
 
     init(scene: SCNScene) {
