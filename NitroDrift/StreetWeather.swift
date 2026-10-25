@@ -90,6 +90,7 @@ final class StreetWeather {
         rain.warmupDuration = 0.5
         rainRoot.addParticleSystem(rain)
         rainRoot.isHidden = true
+        rainRoot.categoryBitMask = 2 // Never render rain into the mirror pass.
         scene.rootNode.addChildNode(rainRoot)
 
         let film = SCNMaterial()
@@ -110,10 +111,12 @@ final class StreetWeather {
         floor.reflectionFalloffStart = 1
         floor.reflectionFalloffEnd = 90
         floor.reflectionResolutionScaleFactor = 0.34
+        floor.reflectionCategoryBitMask = 1 // Reflect vehicles/buildings, not water decals.
         floor.firstMaterial = film
         let mirrorNode = SCNNode(geometry: floor)
         mirrorNode.position = SCNVector3(0, 0.101, 0)
         mirrorNode.isHidden = true
+        mirrorNode.categoryBitMask = 2
         mirrorNode.castsShadow = false
         scene.rootNode.addChildNode(mirrorNode)
         mirrorFloor = floor
@@ -146,6 +149,7 @@ final class StreetWeather {
             p.eulerAngles.x = -.pi / 2
             p.eulerAngles.z = Float((i * 23 % 75)) * .pi / 180
             p.isHidden = true
+            p.categoryBitMask = 2
             p.castsShadow = false
             scene.rootNode.addChildNode(p)
             nodes.append(p)
