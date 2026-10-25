@@ -13,6 +13,25 @@ jobs:
       - uses: actions/checkout@v4
       - name: Xcode version
         run: xcodebuild -version
+      - name: Validate NitroDrift sync tooling
+        run: |
+          bash -n scripts/nd-sync
+          python3 -m py_compile scripts/merge_xcode_settings.py
+          python3 - <<'PY'
+          import pathlib, tempfile, subprocess
+          with tempfile.TemporaryDirectory() as root:
+              folder = pathlib.Path(root)
+              base = folder / "base"
+              local = folder / "local"
+              remote = folder / "remote"
+              merged = folder / "merged"
+              base.write_text("VERSION = 1;\nDEVELOPMENT_TEAM = \"\";\n", encoding="utf-8")
+              local.write_text("VERSION = 1;\nDEVELOPMENT_TEAM = \"USERTEAM\";\n", encoding="utf-8")
+              remote.write_text("VERSION = 2;\nDEVELOPMENT_TEAM = \"\";\n", encoding="utf-8")
+              subprocess.run(["python3", "scripts/merge_xcode_settings.py",
+                  str(base), str(local), str(remote), str(merged)], check=True)
+              assert merged.read_text() == "VERSION = 2;\nDEVELOPMENT_TEAM = \"USERTEAM\";\n"
+          PY
       - name: Physics smoke tests
         run: |
           swiftc NitroDrift/CarDynamics.swift scripts/PhysicsSmokeTest.swift -o "$RUNNER_TEMP/physics-smoke"
