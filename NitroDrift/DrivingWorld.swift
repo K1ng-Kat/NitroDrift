@@ -162,7 +162,8 @@ final class DrivingWorld {
             frame = dynamics.step(dt: substep, input: input, engine: session.engineLevel,
                                   handling: session.handlingLevel, brakes: session.brakeLevel,
                                   carTier: session.carStyle.rawValue,
-                                  assist: session.handlingAssist, boosting: canNitro)
+                                  assist: session.handlingAssist, boosting: canNitro,
+                                  surfaceGrip: session.weather == .rain ? 0.73 : 1.0)
         }
         let roadX = abs(dynamics.x - (dynamics.x / 150.0).rounded() * 150.0)
         let roadZ = abs(dynamics.z - (dynamics.z / 150.0).rounded() * 150.0)

@@ -101,6 +101,7 @@ final class GameSession: ObservableObject {
     @Published var gear = 1
     @Published var weather: StreetWeatherMode
     @Published var graphicsQuality: GraphicsQuality
+    @Published var screenRefractionEnabled: Bool
     @Published var engineRPM = 900
     @Published var lateralG = 0.0
     @Published var tireGrip = 0.0
@@ -153,6 +154,7 @@ final class GameSession: ObservableObject {
         let s = UserDefaults.standard
         weather = StreetWeatherMode(rawValue: s.string(forKey: "streetWeather") ?? "") ?? .dry
         graphicsQuality = GraphicsQuality(rawValue: s.string(forKey: "graphicsQuality") ?? "") ?? (ProcessInfo.processInfo.physicalMemory >= 4_000_000_000 ? .cinematic : .balanced)
+        screenRefractionEnabled = s.object(forKey: "screenRefractionEnabled") as? Bool ?? true
         cash = s.object(forKey: "cash") as? Int ?? 1200
         engineLevel = s.integer(forKey: "engineLevel")
         handlingLevel = s.integer(forKey: "handlingLevel")
@@ -342,6 +344,7 @@ final class GameSession: ObservableObject {
     func setMusic(_ value: Bool) { musicEnabled = value; store.set(value, forKey: "musicEnabled") }
     func setAssist(_ value: Bool) { handlingAssist = value; store.set(value, forKey: "handlingAssist") }
     func setQuality(_ value: GraphicsQuality) { graphicsQuality = value; store.set(value.rawValue, forKey: "graphicsQuality") }
+    func setRefraction(_ enabled: Bool) { screenRefractionEnabled = enabled; store.set(enabled, forKey: "screenRefractionEnabled") }
     func setWeather(_ value: StreetWeatherMode) { weather = value; store.set(value.rawValue, forKey: "streetWeather") }
 
     func feedback(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {

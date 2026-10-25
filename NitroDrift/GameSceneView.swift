@@ -33,10 +33,26 @@ struct GameSceneView: UIViewRepresentable {
         if uiView.antialiasingMode != desired {
             uiView.antialiasingMode = desired
         }
+        let useRefraction = session.graphicsQuality == .ultra
+            && session.weather == .rain
+            && session.screenRefractionEnabled
+        if context.coordinator.refractionActive != useRefraction {
+            if useRefraction {
+                if context.coordinator.refractionTechnique == nil {
+                    context.coordinator.refractionTechnique = ScreenSpaceWater.makeTechnique()
+                }
+                uiView.technique = context.coordinator.refractionTechnique
+                context.coordinator.refractionActive = uiView.technique != nil
+            } else {
+                uiView.technique = nil
+                context.coordinator.refractionActive = false
+            }
+        }
     }
 
     static func dismantleUIView(_ uiView: SCNView, coordinator: Coordinator) {
         coordinator.stop()
+        uiView.technique = nil
         uiView.isPlaying = false
     }
 
@@ -44,6 +60,8 @@ struct GameSceneView: UIViewRepresentable {
         let session: GameSession
         let world = DrivingWorld()
         private let gamepad = RacingGamepad()
+        var refractionTechnique: SCNTechnique?
+        var refractionActive = false
         private var displayLink: CADisplayLink?
         private var previousTimestamp: CFTimeInterval = 0
 

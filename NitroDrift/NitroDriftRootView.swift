@@ -267,6 +267,14 @@ struct NitroDriftRootView: View {
                         }
                     }
                     .pickerStyle(.segmented)
+                    Toggle("Screen-space water refraction (experimental)", isOn: Binding(
+                        get: { session.screenRefractionEnabled },
+                        set: { session.setRefraction($0) }
+                    ))
+                    .tint(NitroTheme.cyan)
+                    Text("Ultra + Rain required. Turn this off if your GPU shows artifacts.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.white.opacity(0.66))
                     Text("Ultra enables stronger reflections and higher-quality shadows. Balanced saves battery.")
                         .font(.system(size: 11))
                         .foregroundStyle(.white.opacity(0.60))
