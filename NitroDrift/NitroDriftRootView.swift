@@ -2,6 +2,7 @@ import SwiftUI
 
 struct NitroDriftRootView: View {
     @EnvironmentObject private var session: GameSession
+    @StateObject private var online = OnlineRacing.shared
 
     var body: some View {
         GeometryReader { size in
@@ -26,6 +27,10 @@ struct NitroDriftRootView: View {
                     garage
                 case .settings:
                     settings
+                case .events:
+                    events
+                case .leaderboard:
+                    leaderboard
                 case .driving:
                     drivingHUD
                 }
@@ -33,6 +38,15 @@ struct NitroDriftRootView: View {
             .frame(width: size.size.width, height: size.size.height)
             .foregroundStyle(.white)
             .animation(.easeInOut(duration: 0.20), value: session.phase)
+            .onAppear {
+                let active = session
+                online.onMatchReady = { [weak active] in active?.start(.online) }
+                online.onMatchEnded = { [weak active] in
+                    guard let active, active.phase == .driving, active.mode == .online else { return }
+                    active.completeEvent(won: false, distance: active.raceCheckpoint,
+                                         title: "OPPONENT LEFT", reward: 0)
+                }
+            }
         }
     }
 
@@ -55,11 +69,15 @@ struct NitroDriftRootView: View {
                 NitroButton(title: "Free ride", symbol: "steeringwheel", highlighted: true) {
                     session.start(.freeRide)
                 }
-                NitroButton(title: "Sprint challenge", symbol: "flag.checkered") {
-                    session.start(.sprint)
+                NitroButton(title: "Race events", symbol: "flag.checkered") {
+                    session.phase = .events
                 }
                 NitroButton(title: "My garage", symbol: "car.side.fill") {
                     session.phase = .garage
+                }
+                NitroButton(title: "Online / rankings", symbol: "network") {
+                    session.phase = .leaderboard
+                    online.authenticate()
                 }
                 NitroButton(title: "Settings", symbol: "gearshape.fill") {
                     session.phase = .settings
@@ -71,7 +89,7 @@ struct NitroDriftRootView: View {
 
             VStack(alignment: .trailing, spacing: 8) {
                 StatPill(symbol: "dollarsign.circle.fill", text: "\(session.cash) CR")
-                StatPill(symbol: "bolt.fill", text: "ENGINE LVL \(session.engineLevel + 1)")
+                StatPill(symbol: "star.fill", text: "LVL \(session.level) • \(session.wins) WINS")
                 Spacer()
                 Text("ALPHA 0.1")
                     .font(.system(size: 10, weight: .black, design: .monospaced))
@@ -91,7 +109,7 @@ struct NitroDriftRootView: View {
                         header("GARAGE")
 
                         HStack {
-                            Text("STREET GT")
+                            Text(session.carStyle.title.uppercased())
                                 .font(.system(size: 23, weight: .black, design: .rounded))
                             Spacer()
                             Text("\(session.cash) CR")
@@ -99,6 +117,18 @@ struct NitroDriftRootView: View {
                                 .foregroundStyle(NitroTheme.cyan)
                         }
 
+                        Text("YOUR CARS")
+                            .font(.system(size: 11, weight: .heavy))
+                            .tracking(1.5)
+                            .foregroundStyle(.white.opacity(0.60))
+                        ForEach(CarStyle.allCases) { style in
+                            let owned = session.ownedCarStyles.contains(style.rawValue)
+                            NitroButton(title: (style == session.carStyle ? "✓ " : "") + style.title + (owned ? "" : " • \(style.price) CR"),
+                                        symbol: "car.side.fill", highlighted: style == session.carStyle,
+                                        disabled: !owned && session.cash < style.price) {
+                                _ = session.selectOrBuyCar(style)
+                            }
+                        }
                         Text("CUSTOM PAINT")
                             .font(.system(size: 11, weight: .heavy))
                             .tracking(1.5)
@@ -143,6 +173,13 @@ struct NitroDriftRootView: View {
                             price: session.handlingPrice(),
                             buy: { session.buyHandling() }
                         )
+
+                        upgrade(title: "BRAKES", subtitle: "Shorter stopping distance",
+                                level: session.brakeLevel, price: session.brakePrice(),
+                                buy: { session.buyBrakes() })
+                        upgrade(title: "NITRO", subtitle: "Longer, stronger boost",
+                                level: session.nitroLevel, price: session.nitroPrice(),
+                                buy: { session.buyNitro() })
 
                         NitroButton(title: "Drive this car", symbol: "steeringwheel", highlighted: true) {
                             session.start(.freeRide)
@@ -202,6 +239,12 @@ struct NitroDriftRootView: View {
                     ))
                     .tint(NitroTheme.cyan)
 
+                    Toggle("Engine / effects", isOn: Binding(get: { session.soundEnabled },
+                                                                  set: { session.setSound($0) })).tint(NitroTheme.cyan)
+                    Toggle("Synthesized soundtrack", isOn: Binding(get: { session.musicEnabled },
+                                                                        set: { session.setMusic($0) })).tint(NitroTheme.cyan)
+                    Toggle("Handling assist", isOn: Binding(get: { session.handlingAssist },
+                                                                 set: { session.setAssist($0) })).tint(NitroTheme.cyan)
                     Text("CAMERA")
                         .font(.system(size: 11, weight: .black))
                         .tracking(2)
@@ -212,7 +255,7 @@ struct NitroDriftRootView: View {
                     Text("Progress is saved automatically on this device.")
                         .font(.system(size: 12))
                         .foregroundStyle(.white.opacity(0.65))
-                    Text("NitroDrift Alpha 0.1 • iOS 17+")
+                    Text("NitroDrift Alpha 0.2 • iOS 17+")
                         .font(.system(size: 10, weight: .medium, design: .monospaced))
                         .foregroundStyle(.white.opacity(0.47))
                 }
@@ -241,6 +284,78 @@ struct NitroDriftRootView: View {
         }
     }
 
+
+    private var events: some View {
+        HStack(alignment: .top) {
+            GlassPanel {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 12) {
+                        header("STREET EVENTS")
+                        Text("EARN CREDITS • BUILD YOUR REP")
+                            .font(.system(size: 11, weight: .black, design: .monospaced))
+                            .foregroundStyle(NitroTheme.cyan)
+                        Text("LEVEL \(session.level) • \(session.reputation) REP")
+                            .font(.system(size: 13, weight: .bold))
+                        NitroButton(title: "Speed Sprint • 900 CR", symbol: "speedometer", highlighted: true) {
+                            session.start(.sprint)
+                        }
+                        Text("Cover 1,600 m in 90 seconds.")
+                            .font(.system(size: 11)).foregroundStyle(.white.opacity(0.7))
+                        NitroButton(title: "Circuit Showdown • 1,800 CR", symbol: "flag.checkered") {
+                            session.start(.circuit)
+                        }
+                        Text("Hit 9 neon checkpoint gates in order before your rival.")
+                            .font(.system(size: 11)).foregroundStyle(.white.opacity(0.7))
+                        NitroButton(title: "Hot Pursuit • 1,100 CR", symbol: "bolt.car.fill") {
+                            session.start(.pursuit)
+                        }
+                        Text("Survive the chase for 75 seconds without maxing out heat.")
+                            .font(.system(size: 11)).foregroundStyle(.white.opacity(0.7))
+                        if session.bestCircuitTime > 0 {
+                            StatPill(symbol: "trophy.fill", text: String(format: "CIRCUIT PB %.1f s", session.bestCircuitTime))
+                        }
+                    }
+                    .padding(2)
+                }
+            }
+            .frame(width: 390)
+            Spacer()
+        }
+        .padding(.horizontal, 25)
+        .padding(.vertical, 10)
+    }
+
+    private var leaderboard: some View {
+        HStack(alignment: .top) {
+            GlassPanel {
+                VStack(alignment: .leading, spacing: 13) {
+                    header("ONLINE RACING")
+                    Text(online.status)
+                        .font(.system(size: 12, weight: .black, design: .monospaced))
+                        .foregroundStyle(online.authenticated ? NitroTheme.cyan : NitroTheme.orange)
+                    Text("Connect to Game Center for two-player real-time checkpoint duels and rankings.")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.white.opacity(0.75))
+                    NitroButton(title: online.authenticated ? "Find 1v1 match" : "Sign in", symbol: "person.2.fill",
+                                highlighted: true) {
+                        if online.authenticated { online.findMatch() }
+                        else { online.authenticate() }
+                    }
+                    NitroButton(title: "Game Center rankings", symbol: "trophy.fill") {
+                        online.showLeaderboards()
+                    }
+                    Text("Online play requires Game Center enabled for this app in App Store Connect. Opponents need compatible builds.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.white.opacity(0.55))
+                }
+            }
+            .frame(width: 420)
+            Spacer()
+        }
+        .padding(.horizontal, 25)
+        .padding(.vertical, 10)
+    }
+
     private var drivingHUD: some View {
         ZStack {
             VStack {
@@ -257,14 +372,17 @@ struct NitroDriftRootView: View {
 
                     StatPill(symbol: "dollarsign.circle.fill", text: "\(session.cash) CR")
                     StatPill(symbol: "sparkles", text: "\(session.driftScore) DRIFT")
+                    StatPill(symbol: "map", text: session.district)
                     Spacer()
 
-                    if session.mode == .sprint {
+                    if session.mode != .freeRide {
                         VStack(alignment: .trailing, spacing: 4) {
                             Text(String(format: "%.1f s", session.sprintTime))
                                 .font(.system(size: 25, weight: .heavy, design: .monospaced))
                                 .foregroundStyle(session.sprintTime < 15 ? NitroTheme.orange : .white)
-                            Text("\(Int(session.sprintDistance)) / \(Int(session.sprintGoal)) M")
+                            Text(session.mode == .sprint ? "\(Int(session.sprintDistance)) / \(Int(session.sprintGoal)) M" :
+                                 session.mode == .pursuit ? "HEAT \(Int(session.heat))% • \(session.wantedLevel) STARS" :
+                                 "GATE \(session.raceCheckpoint) / \(session.raceCheckpointTotal) • P\(session.racePosition)")
                                 .font(.system(size: 11, weight: .bold, design: .monospaced))
                         }
                     }
@@ -346,13 +464,18 @@ struct NitroDriftRootView: View {
                 GlassPanel {
                     VStack(spacing: 13) {
                         if let result = session.raceResult {
-                            Text(result.won ? "SPRINT COMPLETE" : "TIME'S UP")
+                            Text(result.title)
                                 .font(.system(size: 25, weight: .black, design: .rounded))
                             Text("\(result.distance) m • +\(result.reward) CR")
                                 .font(.system(size: 15, weight: .bold, design: .monospaced))
                                 .foregroundStyle(NitroTheme.cyan)
                             NitroButton(title: "Race again", highlighted: true) {
-                                session.start(.sprint)
+                                if session.mode == .online {
+                                    session.goToMenu()
+                                    session.phase = .leaderboard
+                                } else {
+                                    session.start(session.mode)
+                                }
                             }
                         } else {
                             Text("PAUSED")
