@@ -8,6 +8,7 @@ final class AudioDirector {
     enum Effect: String { case crash, checkpoint, nitro, police }
 
     private var engine: AVAudioPlayer?
+    private var engineHigh: AVAudioPlayer?
     private var music: AVAudioPlayer?
     private var effects: [Effect: AVAudioPlayer] = [:]
     private var nitroWasActive = false
@@ -21,10 +22,16 @@ final class AudioDirector {
         let shouldPlayEngine = running && soundEnabled
         if shouldPlayEngine {
             engine?.enableRate = true
-            engine?.rate = Float(max(0.65, min(2.0, Double(rpm) / 3500.0)))
-            engine?.volume = Float(min(0.35, 0.12 + Double(speed) / 1500.0))
+            engineHigh?.enableRate = true
+            let blend = max(0, min(1, (Double(rpm) - 2400) / 4300))
+            let gain = min(0.55, 0.21 + Double(speed) / 1300)
+            engine?.rate = Float(max(0.7, min(1.65, Double(rpm) / 3500)))
+            engine?.volume = Float(gain * (engineHigh == nil ? 1 : 1 - blend))
+            engineHigh?.rate = Float(max(0.78, min(1.6, Double(rpm) / 5600)))
+            engineHigh?.volume = Float(gain * blend)
             if engine?.isPlaying == false { engine?.play() }
-        } else { engine?.pause() }
+            if engineHigh?.isPlaying == false { engineHigh?.play() }
+        } else { engine?.pause(); engineHigh?.pause() }
 
         if musicEnabled {
             music?.volume = 0.13
@@ -51,6 +58,8 @@ final class AudioDirector {
             let phase = 2 * Double.pi * 90 * t
             return 0.24 * sin(phase) + 0.12 * sin(phase * 2) + 0.08 * sin(phase * 3)
         }, loop: true)
+        engine = bundledLoop("engine_low") ?? engine
+        engineHigh = bundledLoop("engine_high")
         music = makePlayer(name: "night-drive", samples: tones(seconds: 4, rate: rate) { t in
             let beats = [110.0, 130.81, 164.81, 146.83, 110.0, 130.81, 196.0, 164.81]
             let beat = Int(t * 2) % beats.count
@@ -76,6 +85,17 @@ final class AudioDirector {
         effects[.police] = makePlayer(name: "police", samples: tones(seconds: 0.6, rate: rate) { t in
             sin(2 * .pi * (t.truncatingRemainder(dividingBy: 0.3) < 0.15 ? 750 : 570) * t) * 0.25
         })
+    }
+
+    private func bundledLoop(_ name: String) -> AVAudioPlayer? {
+        guard let url = Bundle.main.url(forResource: name,
+                                       withExtension: "wav",
+                                       subdirectory: "Assets.scnassets/Audio"),
+              let player = try? AVAudioPlayer(contentsOf: url) else { return nil }
+        player.numberOfLoops = -1
+        player.enableRate = true
+        player.prepareToPlay()
+        return player
     }
 
     private func tones(seconds: Double, rate: Int, wave: (Double) -> Double) -> [Int16] {
