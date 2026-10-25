@@ -26,3 +26,36 @@ jobs:
             -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator' \
             CODE_SIGNING_ALLOWED=NO build
+
+      - name: Launch Ultra Rain in iPhone simulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          DEVICE="$(xcrun simctl list devices available --json | python3 -c '
+          import json,sys
+          devices=json.load(sys.stdin)["devices"]
+          for items in devices.values():
+              for d in items:
+                  if d.get("isAvailable") and "iPhone" in d.get("name",""):
+                      print(d["udid"])
+                      sys.exit(0)
+          ')"
+          if [[ -z "$DEVICE" ]]; then
+            echo "No installed iPhone runtime; compile is still checked."
+            exit 0
+          fi
+          xcrun simctl boot "$DEVICE"
+          xcrun simctl bootstatus "$DEVICE" -b
+          xcrun simctl install "$DEVICE" "$PWD/build/Debug-iphonesimulator/NitroDrift.app"
+          xcrun simctl launch "$DEVICE" com.kingkat.NitroDrift \
+            -streetWeather rain -graphicsQuality ultra -screenRefractionEnabled YES
+          sleep 10
+          xcrun simctl io "$DEVICE" screenshot "$RUNNER_TEMP/nitro-ultra-rain.png"
+      - name: Save rendered screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nitro-ultra-rain-screenshot
+          path: ${{ runner.temp }}/nitro-ultra-rain.png
+          if-no-files-found: ignore
+          retention-days: 7
