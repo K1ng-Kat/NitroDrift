@@ -144,6 +144,7 @@ final class GameSession: ObservableObject {
     @Published var nextGateDistance = 0
     @Published var nextGateDirection = "↑"
     @Published var handlingAssist = true
+    @Published var easyDrive: Bool
 
     var input = DriverInput()
     var resetToken = 0
@@ -172,6 +173,7 @@ final class GameSession: ObservableObject {
         wins = s.integer(forKey: "wins")
         bestCircuitTime = s.double(forKey: "bestCircuitTime")
         handlingAssist = s.object(forKey: "handlingAssist") as? Bool ?? true
+        easyDrive = s.object(forKey: "easyDrive") as? Bool ?? true
     }
 
     func start(_ selection: DriveMode) {
@@ -343,6 +345,7 @@ final class GameSession: ObservableObject {
     func setSound(_ value: Bool) { soundEnabled = value; store.set(value, forKey: "soundEnabled") }
     func setMusic(_ value: Bool) { musicEnabled = value; store.set(value, forKey: "musicEnabled") }
     func setAssist(_ value: Bool) { handlingAssist = value; store.set(value, forKey: "handlingAssist") }
+    func setEasyDrive(_ value: Bool) { easyDrive = value; input.clear(); store.set(value, forKey: "easyDrive") }
     func setQuality(_ value: GraphicsQuality) { graphicsQuality = value; store.set(value.rawValue, forKey: "graphicsQuality") }
     func setRefraction(_ enabled: Bool) { screenRefractionEnabled = enabled; store.set(enabled, forKey: "screenRefractionEnabled") }
     func setWeather(_ value: StreetWeatherMode) { weather = value; store.set(value.rawValue, forKey: "streetWeather") }

@@ -249,6 +249,14 @@ struct NitroDriftRootView: View {
                                                                   set: { session.setSound($0) })).tint(NitroTheme.cyan)
                     Toggle("Synthesized soundtrack", isOn: Binding(get: { session.musicEnabled },
                                                                         set: { session.setMusic($0) })).tint(NitroTheme.cyan)
+                    Toggle("Easy Drive (auto accelerate)", isOn: Binding(
+                        get: { session.easyDrive },
+                        set: { session.setEasyDrive($0) }
+                    ))
+                    .tint(NitroTheme.cyan)
+                    Text("Asphalt-style: steer, brake, drift and boost without holding Gas. Turn off for full manual throttle.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.white.opacity(0.7))
                     Toggle("Handling assist", isOn: Binding(get: { session.handlingAssist },
                                                                  set: { session.setAssist($0) })).tint(NitroTheme.cyan)
                     Picker("Road condition", selection: Binding(

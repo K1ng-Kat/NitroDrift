@@ -150,7 +150,13 @@ final class DrivingWorld {
     }
 
     private func simulate(_ dt: Double, session: GameSession) {
-        let input = session.input
+        var input = session.input
+        // Asphalt-inspired simplified layout: steering/brake/drift/nitro
+        // with automatic forward throttle. Braking ALWAYS overrides auto gas.
+        if session.easyDrive && !input.brake && input.analogBrake < 0.05 &&
+           !input.handbrake && !input.gamepadHandbrake {
+            input.gas = true
+        }
         let canNitro = (input.nitro || input.gamepadNitro) && (input.gas || input.analogThrottle > 0.15) && currentNitro > 0.4 && velocity > 2
         let meterDrain = max(12, 23 - Double(session.nitroLevel) * 1.8)
         currentNitro = min(100, max(0, currentNitro + (canNitro ? -meterDrain : 6.5) * dt))

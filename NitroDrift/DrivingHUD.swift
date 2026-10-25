@@ -1,95 +1,112 @@
 import SwiftUI
 
-/// Device-adaptive HUD. Controls remain outside scroll views and are layered
-/// above a non-hit-testable SceneKit view so every touch reaches UIKit tracking.
+/// Thumb-first landscape controls. Easy Drive accelerates automatically; this
+/// frees both thumbs for steering, controlled braking, drifting and boost.
+/// All driving controls are native UIKit buttons supporting simultaneous touch.
 struct DrivingHUD: View {
     @ObservedObject var session: GameSession
 
     var body: some View {
         GeometryReader { geo in
-            let compact = geo.size.width < 820
-            let control = compact ? CGFloat(59) : CGFloat(75)
-            let height = compact ? CGFloat(65) : CGFloat(80)
-            let mapSize = compact ? CGFloat(82) : CGFloat(115)
-            let horizontalPadding = compact ? CGFloat(12) : CGFloat(24)
-
+            let compact = geo.size.width < 790
+            let narrow = geo.size.width < 705
+            let steerWidth: CGFloat = narrow ? 76 : compact ? 92 : 108
+            let pedalWidth: CGFloat = narrow ? 62 : compact ? 72 : 84
+            let controlHeight: CGFloat = compact ? 71 : 88
+            let edge: CGFloat = narrow ? 8 : compact ? 12 : 23
+            let spacing: CGFloat = narrow ? 5 : 9
             ZStack {
-                VStack(spacing: 8) {
+                VStack(spacing: 4) {
                     topHUD(compact: compact)
-                    Spacer(minLength: 0)
-                    HStack(alignment: .bottom, spacing: compact ? 5 : 10) {
-                        HoldDriveButton(label: "LEFT", symbol: "arrow.left",
-                                        width: control, height: height,
-                                        onPressed: { session.input.left = $0 })
-                            .frame(width: control, height: height)
-                        HoldDriveButton(label: "RIGHT", symbol: "arrow.right",
-                                        width: control, height: height,
-                                        onPressed: { session.input.right = $0 })
-                            .frame(width: control, height: height)
+                    Spacer(minLength: 6)
+
+                    // Speed belongs in the unobstructed middle of the screen,
+                    // avoiding six controls plus a minimap fighting for width.
+                    HStack(alignment: .bottom, spacing: spacing) {
+                        VStack(alignment: .leading, spacing: 5) {
+                            HStack(spacing: spacing) {
+                                HoldDriveButton(label: "LEFT", symbol: "arrowshape.left.fill",
+                                                color: NitroTheme.cyan,
+                                                width: steerWidth, height: controlHeight,
+                                                onPressed: { session.input.left = $0 })
+                                    .frame(width: steerWidth, height: controlHeight)
+                                HoldDriveButton(label: "RIGHT", symbol: "arrowshape.right.fill",
+                                                color: NitroTheme.cyan,
+                                                width: steerWidth, height: controlHeight,
+                                                onPressed: { session.input.right = $0 })
+                                    .frame(width: steerWidth, height: controlHeight)
+                            }
+                            Text(session.easyDrive ? "AUTO ACCELERATION" : "MANUAL THROTTLE")
+                                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                                .tracking(0.8)
+                                .foregroundStyle(.white.opacity(0.65))
+                        }
 
                         Spacer(minLength: 2)
-
-                        MiniMapView(session: session)
-                            .frame(width: mapSize, height: mapSize)
-                            .allowsHitTesting(false)
 
                         VStack(spacing: 0) {
                             Text("\(session.speedKPH)")
-                                .font(.system(size: compact ? 35 : 51, weight: .black, design: .rounded).monospacedDigit())
-                                .minimumScaleFactor(0.75)
+                                .font(.system(size: compact ? 31 : 47,
+                                              weight: .black, design: .rounded))
+                                .monospacedDigit()
                                 .contentTransition(.numericText())
-                            Text("KM/H   ·   G\(session.gear)")
-                                .font(.system(size: compact ? 9 : 11, weight: .heavy, design: .monospaced))
-                                .foregroundStyle(.white.opacity(0.82))
-                        }
-                        .frame(width: compact ? 90 : 125)
-                        .overlay(alignment: .top) {
+                            Text("KM/H  G\(session.gear)")
+                                .font(.system(size: 9, weight: .heavy, design: .monospaced))
+                                .foregroundStyle(.white.opacity(0.75))
                             Text("\(session.engineRPM) RPM")
-                                .font(.system(size: 8, weight: .bold, design: .monospaced))
-                                .foregroundStyle(.white.opacity(0.58))
-                                .offset(y: -12)
+                                .font(.system(size: 8, weight: .medium, design: .monospaced))
+                                .foregroundStyle(.white.opacity(0.54))
                         }
-                        .padding(.bottom, 3)
+                        .frame(width: narrow ? 78 : compact ? 98 : 120)
+                        .padding(.bottom, 5)
+                        .allowsHitTesting(false)
 
                         Spacer(minLength: 2)
 
-                        HoldDriveButton(label: "E-BRAKE", symbol: "hand.raised.fill",
-                                        color: NitroTheme.orange,
-                                        width: compact ? 48 : 64, height: height - 6,
-                                        onPressed: { session.input.handbrake = $0 })
-                            .frame(width: compact ? 48 : 64, height: height - 6)
-                        HoldDriveButton(label: "BRAKE", symbol: "minus",
-                                        color: NitroTheme.orange,
-                                        width: control, height: height,
-                                        onPressed: { session.input.brake = $0 })
-                            .frame(width: control, height: height)
-                        HoldDriveButton(label: "GAS", symbol: "arrow.up",
-                                        width: control, height: height,
-                                        onPressed: { session.input.gas = $0 })
-                            .frame(width: control, height: height)
-                        VStack(spacing: 5) {
-                            HoldDriveButton(label: "NITRO", symbol: "bolt.fill",
+                        HStack(alignment: .bottom, spacing: spacing) {
+                            HoldDriveButton(label: "BRAKE", symbol: "minus.circle.fill",
                                             color: NitroTheme.orange,
-                                            width: control, height: height - 14,
-                                            onPressed: { session.input.nitro = $0 })
-                                .frame(width: control, height: height - 14)
-                            GeometryReader { bounds in
-                                ZStack(alignment: .leading) {
-                                    Capsule().fill(.white.opacity(0.19))
-                                    Capsule().fill(NitroTheme.orange)
-                                        .frame(width: bounds.size.width * CGFloat(max(0, min(1, session.nitro / 100))))
+                                            width: pedalWidth, height: controlHeight,
+                                            onPressed: { session.input.brake = $0 })
+                                .frame(width: pedalWidth, height: controlHeight)
+                            HoldDriveButton(label: "DRIFT", symbol: "steeringwheel",
+                                            color: NitroTheme.orange,
+                                            width: pedalWidth, height: controlHeight,
+                                            onPressed: { session.input.handbrake = $0 })
+                                .frame(width: pedalWidth, height: controlHeight)
+                            VStack(spacing: 5) {
+                                HoldDriveButton(label: "NITRO", symbol: "bolt.fill",
+                                                color: NitroTheme.cyan,
+                                                width: pedalWidth, height: controlHeight - 11,
+                                                onPressed: { session.input.nitro = $0 })
+                                    .frame(width: pedalWidth, height: controlHeight - 11)
+                                GeometryReader { progress in
+                                    ZStack(alignment: .leading) {
+                                        Capsule().fill(.white.opacity(0.17))
+                                        Capsule().fill(NitroTheme.cyan)
+                                            .frame(width: progress.size.width *
+                                                CGFloat(max(0, min(1, session.nitro / 100))))
+                                    }
                                 }
+                                .frame(width: pedalWidth, height: 6)
+                                .allowsHitTesting(false)
                             }
-                            .frame(width: control, height: 7)
+                            if !session.easyDrive {
+                                HoldDriveButton(label: "GAS", symbol: "arrow.up.circle.fill",
+                                                color: NitroTheme.cyan,
+                                                width: pedalWidth, height: controlHeight,
+                                                onPressed: { session.input.gas = $0 })
+                                    .frame(width: pedalWidth, height: controlHeight)
+                            }
                         }
                     }
+                    .padding(.bottom, compact ? 3 : 11)
                 }
-                .padding(.horizontal, horizontalPadding)
-                .padding(.vertical, compact ? 6 : 12)
+                .padding(.horizontal, edge)
+                .padding(.top, compact ? 3 : 10)
 
                 if session.isPaused {
-                    Color.black.opacity(0.76)
-                        .ignoresSafeArea()
+                    Color.black.opacity(0.85).ignoresSafeArea()
                     GlassPanel {
                         VStack(spacing: 12) {
                             if let result = session.raceResult {
@@ -98,7 +115,8 @@ struct DrivingHUD: View {
                                 Text("\(result.distance) • +\(result.reward) CR")
                                     .font(.system(size: 13, weight: .bold, design: .monospaced))
                                     .foregroundStyle(NitroTheme.cyan)
-                                NitroButton(title: "Race again", symbol: "arrow.clockwise", highlighted: true) {
+                                NitroButton(title: "Race again", symbol: "arrow.clockwise",
+                                            highlighted: true) {
                                     if session.mode == .online {
                                         session.goToMenu()
                                         session.phase = .leaderboard
