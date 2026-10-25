@@ -347,7 +347,9 @@ final class DrivingWorld {
         scene.rootNode.addChildNode(moonNode)
 
         let ground = SCNFloor()
-        ground.reflectivity = 0.09
+        // Reflection lives on the small wet-road patch; keep the infinite
+        // terrain from paying for a second planar reflection pass.
+        ground.reflectivity = 0
         ground.firstMaterial = material(UIColor(red: 0.034, green: 0.043, blue: 0.071, alpha: 1), roughness: 0.85)
         let groundNode = SCNNode(geometry: ground)
         groundNode.position.y = -0.08

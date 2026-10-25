@@ -2,6 +2,19 @@
 
 Native **3D street-racing game prototype** for iPhone and iPad, made with SwiftUI + SceneKit + GameKit + AVFoundation. iOS 17+.
 
+## Alpha 0.5 — wet-road / water rendering
+
+The rain mode now has physically motivated, GPU-animated water visuals rather than just flat blue transparent rectangles:
+
+- **One bounded live planar-reflection pass** using \`SCNFloor\` follows the nearby road. Nearby buildings, vehicles and lamps can actually appear in its reflection. The reflection is not ray traced and only covers a local 21 × 66 m wet roadway; the infinite base terrain's redundant reflection pass is disabled.
+- **Metal shader modifiers on puddles and wet film** animate overlapping capillary wave and ring patterns, alter tangent-space normals, approximate Fresnel view-angle reflectance and produce variable transmission / refraction-*like* tint and ripple distortion. The asphalt beneath stays visible. These are **not physically correct framebuffer refraction or screen-space ray-traced reflections**.
+- **Procedural wet/dry normal maps** add micro-surface roughness to roads without downloading texture assets. Water remains non-metallic (dielectric) and wet asphalt becomes optically smoother.
+- **Wet tire spray** uses two speed-dependent particle systems behind the rear tires, with rate capped by the selected quality mode. This sits alongside the existing scene rain.
+- **Ultra graphics quality**: higher-resolution local mirror (0.55 offscreen reflection scale), stronger shadow quality (2K shadow map), extra rain and spray. Cinematic retains a lower-cost local mirror (0.34), while Balanced disables the mirror and reduces particles. These are qualitative presets, not promises of a particular FPS.
+- Wet mode remains available in **Settings → Road condition → Rain**. Choose **Settings → Graphics quality → Ultra** for maximum visual effects. The new settings are persisted across app launches.
+
+**Validation:** iOS simulator compilation and pure Swift physics tests run in GitHub Actions. A successful build does **not** establish that the water shader compiled successfully at runtime on all GPUs, or that the visuals meet photorealism expectations. The shaders should be inspected on an actual iPhone/iPad and optimized with Xcode's GPU frame debugger. SceneKit has rendering limits; true screen-space/ray-traced refraction, expansive city reflections and AAA fidelity would require a deeper custom Metal/modern game-engine renderer and licensed high-detail environment assets.
+
 ## Alpha 0.4 — realism systems
 
 This is an integrated realism-focused **mobile prototype**, not photorealism.

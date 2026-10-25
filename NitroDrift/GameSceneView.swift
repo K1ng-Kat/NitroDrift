@@ -26,7 +26,13 @@ struct GameSceneView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: SCNView, context: Context) {
-        uiView.antialiasingMode = session.graphicsQuality == .balanced ? .multisampling2X : .multisampling4X
+        // HUD state updates frequently: don't reset the renderer AA mode
+        // unless the player actually changed the graphics preset.
+        let desired: SCNAntialiasingMode = session.graphicsQuality == .balanced
+            ? .multisampling2X : .multisampling4X
+        if uiView.antialiasingMode != desired {
+            uiView.antialiasingMode = desired
+        }
     }
 
     static func dismantleUIView(_ uiView: SCNView, coordinator: Coordinator) {
