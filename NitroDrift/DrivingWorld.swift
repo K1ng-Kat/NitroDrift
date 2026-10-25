@@ -11,7 +11,7 @@ final class DrivingWorld {
     private let tireSpray = TireSpray()
     private lazy var weatherFX = StreetWeather(scene: scene)
     private var displayedWeather: StreetWeatherMode = .dry
-    private var asphaltMaterial: SCNMaterial?
+    private var asphaltMaterials: [SCNMaterial] = []
 
     private let car = SCNNode()
     private let camera = SCNNode()
@@ -60,12 +60,16 @@ final class DrivingWorld {
             configureGraphics(session.graphicsQuality)
             let wet = session.weather == .rain
             weatherFX.configure(wet: wet, quality: session.graphicsQuality)
-            asphaltMaterial?.roughness.contents = wet ? 0.18 : 0.77
+            for asphalt in asphaltMaterials {
+                asphalt.roughness.contents = wet ? 0.18 : CityVisuals.roadRoughness()
+            }
             // Water and wet asphalt remain mostly nonmetallic; the reflected
             // surroundings come from the road mirror and environment.
-            asphaltMaterial?.metalness.contents = wet ? 0.02 : 0.08
-            asphaltMaterial?.normal.contents = wet ? CityVisuals.rainNormalMap() : CityVisuals.roadNormalMap()
-            asphaltMaterial?.normal.intensity = wet ? 0.44 : 0.20
+            for asphalt in asphaltMaterials { asphalt.metalness.contents = wet ? 0.02 : 0.03 }
+            for asphalt in asphaltMaterials {
+                asphalt.normal.contents = wet ? CityVisuals.rainNormalMap() : CityVisuals.roadNormalMap()
+            }
+            for asphalt in asphaltMaterials { asphalt.normal.intensity = wet ? 0.44 : 0.45 }
             scene.fogStartDistance = wet ? 100 : 150
             scene.fogEndDistance = wet ? 330 : 440
         }
@@ -356,17 +360,16 @@ final class DrivingWorld {
         groundNode.position.y = -0.08
         scene.rootNode.addChildNode(groundNode)
 
-        let asphalt = CityVisuals.roadMaterial()
-        asphalt.normal.contents = CityVisuals.roadNormalMap()
-        asphalt.normal.intensity = 0.20
-        asphaltMaterial = asphalt
+        let asphaltNS = CityVisuals.roadMaterial()
+        let asphaltEW = CityVisuals.roadMaterial(horizontal: true)
+        asphaltMaterials = [asphaltNS, asphaltEW]
         let roadLines = glowMaterial(UIColor(red: 1, green: 0.79, blue: 0.30, alpha: 1), intensity: 0.30)
 
         for coordinate in stride(from: -450, through: 450, by: 150) {
             addBox(width: 24, height: 0.08, length: 1040,
-                   at: SCNVector3(Float(coordinate), 0.025, 0), material: asphalt)
+                   at: SCNVector3(Float(coordinate), 0.025, 0), material: asphaltNS)
             addBox(width: 1040, height: 0.08, length: 24,
-                   at: SCNVector3(0, 0.03, Float(coordinate)), material: asphalt)
+                   at: SCNVector3(0, 0.03, Float(coordinate)), material: asphaltEW)
 
             for marker in stride(from: -495, through: 495, by: 15) {
                 // Avoid drawing lines directly through road intersections.
