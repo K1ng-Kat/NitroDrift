@@ -327,8 +327,8 @@ final class DrivingWorld {
     private func createEnvironment() {
         let skyTexture = CityVisuals.sky()
         scene.background.contents = skyTexture
-        scene.lightingEnvironment.contents = skyTexture
-        scene.lightingEnvironment.intensity = 0.9
+        scene.lightingEnvironment.contents = CityVisuals.urbanLightingProbe() ?? skyTexture
+        scene.lightingEnvironment.intensity = CityVisuals.urbanLightingProbe() == nil ? 0.9 : 1.25
         scene.fogColor = UIColor(red: 0.02, green: 0.03, blue: 0.065, alpha: 1)
         scene.fogStartDistance = 150
         scene.fogEndDistance = 440
