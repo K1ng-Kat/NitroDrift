@@ -48,7 +48,7 @@ jobs:
           xcrun simctl bootstatus "$DEVICE" -b
           xcrun simctl install "$DEVICE" "$PWD/build/Debug-iphonesimulator/NitroDrift.app"
           xcrun simctl launch "$DEVICE" com.kingkat.NitroDrift \
-            -streetWeather rain -graphicsQuality ultra -screenRefractionEnabled YES
+            -streetWeather rain -graphicsQuality ultra -screenRefractionEnabled YES -ndAutomatedDrive
           sleep 10
           xcrun simctl io "$DEVICE" screenshot "$RUNNER_TEMP/nitro-ultra-rain.png"
       - name: Save rendered screenshot
