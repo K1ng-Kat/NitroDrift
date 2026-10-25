@@ -12,6 +12,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: Xcode version
         run: xcodebuild -version
+      - name: Physics smoke tests
+        run: |
+          swiftc NitroDrift/CarDynamics.swift scripts/PhysicsSmokeTest.swift -o "$RUNNER_TEMP/physics-smoke"
+          "$RUNNER_TEMP/physics-smoke"
       - name: Build for iOS Simulator
         run: |
           set -o pipefail
