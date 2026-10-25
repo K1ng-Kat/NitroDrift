@@ -47,7 +47,8 @@ struct NitroButton: View {
             }
             .foregroundStyle(highlighted ? NitroTheme.background : .white)
             .padding(.horizontal, 17)
-            .frame(height: 45)
+            .frame(minHeight: 52)
+            .contentShape(Rectangle())
             .background(highlighted ? NitroTheme.cyan : .white.opacity(0.10))
             .clipShape(RoundedRectangle(cornerRadius: 11))
             .overlay {
@@ -55,7 +56,7 @@ struct NitroButton: View {
                     .strokeBorder(.white.opacity(highlighted ? 0 : 0.12), lineWidth: 1)
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.borderless)
         .opacity(disabled ? 0.4 : 1)
         .disabled(disabled)
     }
@@ -80,8 +81,10 @@ struct GlassPanel<Content: View>: View {
     }
 }
 
-/// Touch-and-hold control. Ending the drag always releases the input.
-struct HoldDriveButton: View {
+/// Native UIKit touch tracking, independent per button and reliable with
+/// simultaneous steering + throttle + nitro touches.
+/// SwiftUI zero-distance DragGestures frequently lose touch-up and conflict.
+struct HoldDriveButton: UIViewRepresentable {
     let label: String
     let symbol: String
     var color: Color = NitroTheme.cyan
@@ -89,40 +92,124 @@ struct HoldDriveButton: View {
     var height: CGFloat = 67
     let onPressed: (Bool) -> Void
 
-    @State private var held = false
+    func makeCoordinator() -> Coordinator { Coordinator(onPressed: onPressed) }
 
-    var body: some View {
-        VStack(spacing: 2) {
-            Image(systemName: symbol)
-                .font(.system(size: 22, weight: .black))
-            Text(label)
-                .font(.system(size: 10, weight: .black, design: .rounded))
-                .tracking(0.6)
+    func makeUIView(context: Context) -> RacingTouchControl {
+        let control = RacingTouchControl()
+        control.configure(title: label, symbol: symbol, tint: UIColor(color))
+        control.onChange = { [weak coordinator = context.coordinator] pressed in
+            coordinator?.onPressed(pressed)
         }
-        .foregroundStyle(held ? NitroTheme.background : color)
-        .frame(width: width, height: height)
-        .background(held ? color : Color.black.opacity(0.61))
-        .clipShape(RoundedRectangle(cornerRadius: 15))
-        .overlay {
-            RoundedRectangle(cornerRadius: 15)
-                .strokeBorder(color.opacity(held ? 1 : 0.65), lineWidth: held ? 2 : 1)
-        }
-        .contentShape(RoundedRectangle(cornerRadius: 15))
-        .gesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { _ in
-                    if !held {
-                        held = true
-                        onPressed(true)
-                    }
-                }
-                .onEnded { _ in
-                    held = false
-                    onPressed(false)
-                }
-        )
-        .accessibilityLabel(label)
+        control.isExclusiveTouch = false
+        control.isMultipleTouchEnabled = false
+        control.accessibilityLabel = label
+        control.accessibilityTraits = .button
+        return control
     }
+
+    func updateUIView(_ view: RacingTouchControl, context: Context) {
+        context.coordinator.onPressed = onPressed
+        view.configure(title: label, symbol: symbol, tint: UIColor(color))
+    }
+
+    static func dismantleUIView(_ view: RacingTouchControl, coordinator: Coordinator) {
+        view.release()
+        view.onChange = nil
+    }
+
+    final class Coordinator {
+        var onPressed: (Bool) -> Void
+        init(onPressed: @escaping (Bool) -> Void) { self.onPressed = onPressed }
+    }
+}
+
+final class RacingTouchControl: UIControl {
+    var onChange: ((Bool) -> Void)?
+    private let iconView = UIImageView()
+    private let caption = UILabel()
+    private var tint = UIColor.cyan
+    private var down = false
+    private let fill = UIView()
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isExclusiveTouch = false
+        backgroundColor = .clear
+        layer.cornerRadius = 15
+        layer.borderWidth = 1.5
+        clipsToBounds = true
+        fill.isUserInteractionEnabled = false
+        iconView.isUserInteractionEnabled = false
+        caption.isUserInteractionEnabled = false
+        fill.translatesAutoresizingMaskIntoConstraints = false
+        iconView.translatesAutoresizingMaskIntoConstraints = false
+        caption.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(fill)
+        addSubview(iconView)
+        addSubview(caption)
+        iconView.contentMode = .scaleAspectFit
+        caption.font = .systemFont(ofSize: 10, weight: .heavy)
+        caption.textAlignment = .center
+        caption.adjustsFontSizeToFitWidth = true
+        NSLayoutConstraint.activate([
+            fill.leadingAnchor.constraint(equalTo: leadingAnchor),
+            fill.trailingAnchor.constraint(equalTo: trailingAnchor),
+            fill.topAnchor.constraint(equalTo: topAnchor),
+            fill.bottomAnchor.constraint(equalTo: bottomAnchor),
+            iconView.centerXAnchor.constraint(equalTo: centerXAnchor),
+            iconView.centerYAnchor.constraint(equalTo: centerYAnchor, constant: -9),
+            iconView.heightAnchor.constraint(equalToConstant: 26),
+            iconView.widthAnchor.constraint(equalToConstant: 28),
+            caption.topAnchor.constraint(equalTo: iconView.bottomAnchor, constant: 3),
+            caption.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 3),
+            caption.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -3)
+        ])
+        render()
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) is unavailable") }
+
+    func configure(title: String, symbol: String, tint: UIColor) {
+        self.tint = tint
+        caption.text = title
+        iconView.image = UIImage(systemName: symbol)?.withRenderingMode(.alwaysTemplate)
+        render()
+    }
+
+    private func render() {
+        layer.borderColor = tint.withAlphaComponent(down ? 1 : 0.68).cgColor
+        fill.backgroundColor = down ? tint : UIColor.black.withAlphaComponent(0.73)
+        iconView.tintColor = down ? UIColor.black : tint
+        caption.textColor = down ? UIColor.black : tint
+    }
+
+    private func setDown(_ state: Bool) {
+        guard down != state else { return }
+        down = state
+        render()
+        onChange?(state)
+    }
+
+    override func beginTracking(_ touch: UITouch, with event: UIEvent?) -> Bool {
+        setDown(true)
+        return true
+    }
+
+    override func continueTracking(_ touch: UITouch, with event: UIEvent?) -> Bool {
+        // Do not drop throttle when a finger drifts over the edge by a few points.
+        let padded = bounds.insetBy(dx: -28, dy: -28)
+        setDown(padded.contains(touch.location(in: self)))
+        return true
+    }
+
+    override func endTracking(_ touch: UITouch?, with event: UIEvent?) { release() }
+    override func cancelTracking(with event: UIEvent?) { release() }
+    override func willMove(toWindow newWindow: UIWindow?) {
+        if newWindow == nil { release() }
+        super.willMove(toWindow: newWindow)
+    }
+
+    func release() { setDown(false) }
 }
 
 struct StatPill: View {
