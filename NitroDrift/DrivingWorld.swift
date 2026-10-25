@@ -14,6 +14,7 @@ final class DrivingWorld {
     private var asphaltMaterials: [SCNMaterial] = []
 
     private let car = SCNNode()
+    private let vehicleVisual = SCNNode()
     private let camera = SCNNode()
     private var paintMaterial = SCNMaterial()
     private var nitroFlames: [SCNNode] = []
@@ -144,7 +145,8 @@ final class DrivingWorld {
         driftElapsed = 0
         tireTrails.reset()
         car.position = SCNVector3(0, 0, 35)
-        car.eulerAngles.y = 0
+        car.eulerAngles = SCNVector3Zero
+        vehicleVisual.eulerAngles = SCNVector3Zero
     }
 
     private func simulate(_ dt: Double, session: GameSession) {
@@ -196,7 +198,10 @@ final class DrivingWorld {
         }
 
         car.position = SCNVector3(Float(positionX), Float(0.012 + sin(elapsed * 12) * min(velocity, 24) * 0.00035), Float(positionZ))
-        car.eulerAngles = SCNVector3(Float(frame.pitch), Float(-heading), Float(frame.roll))
+        // Heading belongs to the world-facing root, not the rolling body.
+        // Decoupling them prevents apparent sideways turns and tilt.
+        car.eulerAngles = SCNVector3(0, Float(-heading), 0)
+        vehicleVisual.eulerAngles = SCNVector3(Float(frame.pitch), 0, Float(frame.roll))
 
         for (index, wheel) in wheelNodes.enumerated() {
             // The wheels are physically oriented on the X axis.
@@ -295,7 +300,10 @@ final class DrivingWorld {
         } else {
             // Cinematic orbit for the home screen and garage.
             let radius = session.phase == .garage ? 8.0 : 11.0
-            let angle = elapsed * 0.12 + 0.6
+            // Keep a rear three-quarter hero angle. Orbiting through full
+            // profile made the car seem permanently sideways on the menu.
+            let angle = (session.phase == .garage ? -0.39 : 0.34)
+                + sin(elapsed * 0.20) * 0.11
             desiredX = positionX + sin(angle) * radius
             desiredY = session.phase == .garage ? 3.0 : 4.1
             desiredZ = positionZ + cos(angle) * radius
@@ -552,28 +560,30 @@ final class DrivingWorld {
     private func createCar() {
         car.name = "player-car"
         scene.rootNode.addChildNode(car)
+        vehicleVisual.name = "car-visual-forward-minus-z"
+        car.addChildNode(vehicleVisual)
         installCarGeometry(style: .street)
     }
 
     private func installCarGeometry(style: CarStyle) {
-        car.childNodes.forEach { $0.removeFromParentNode() }
+        vehicleVisual.childNodes.forEach { $0.removeFromParentNode() }
         paintMaterial = VehicleArt.mat(displayedPaint.color, metal: 0.63, rough: 0.17)
         if let highDetail = VehicleAssetLoader.installIfAvailable(style: style,
-                                                                  into: car,
+                                                                  into: vehicleVisual,
                                                                   paint: paintMaterial) {
             wheelNodes = highDetail.wheels
             nitroFlames = highDetail.flames
             brakeLights = highDetail.brakeLights
-            car.scale = SCNVector3(1, 1, 1)
+            vehicleVisual.scale = SCNVector3(1, 1, 1)
         } else {
-            let parts = VehicleArt.install(into: car, paint: paintMaterial)
+            let parts = VehicleArt.install(into: vehicleVisual, paint: paintMaterial)
             wheelNodes = parts.wheels
             nitroFlames = parts.flames
             brakeLights = parts.brakeLights
             let tier = Float(style.rawValue)
-            car.scale = SCNVector3(1 + tier * 0.07, 1 - tier * 0.025, 1 + tier * 0.08)
+            vehicleVisual.scale = SCNVector3(1 + tier * 0.07, 1 - tier * 0.025, 1 + tier * 0.08)
         }
-        tireSpray.attach(to: car)
+        tireSpray.attach(to: vehicleVisual)
     }
 
     private func makeGhost() {
