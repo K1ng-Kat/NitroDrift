@@ -125,27 +125,89 @@ enum CityVisuals {
         return UIImage(cgImage: image)
     }
 
-    static func sky() -> UIImage {
-        return texture(size: 512) { context, size in
-            let colors = [
-                UIColor(red: 0.006, green: 0.011, blue: 0.038, alpha: 1).cgColor,
-                UIColor(red: 0.035, green: 0.045, blue: 0.10, alpha: 1).cgColor,
-                UIColor(red: 0.115, green: 0.09, blue: 0.16, alpha: 1).cgColor
-            ]
-            let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
-                                      colors: colors as CFArray, locations: [0, 0.58, 1])!
-            context.drawLinearGradient(gradient, start: .zero,
-                                       end: CGPoint(x: 0, y: size.height), options: [])
-            var seed: UInt32 = 0xACED0121
-            func random() -> CGFloat {
-                seed = 1664525 &* seed &+ 1013904223
-                return CGFloat(seed % 10_000) / 10_000
+    // Richer daylight/golden-hour gradients make model paint and city details
+    // readable. The previous night-only image left everything nearly black.
+    private static let goldenSky = makeSky(.sunset)
+    private static let daylightSky = makeSky(.day)
+    private static let midnightSky = makeSky(.night)
+
+    static func sky(_ mode: StreetTimeOfDay = .sunset) -> UIImage {
+        switch mode {
+        case .sunset: return goldenSky
+        case .day: return daylightSky
+        case .night: return midnightSky
+        }
+    }
+
+    private static func makeSky(_ mode: StreetTimeOfDay) -> UIImage {
+        texture(size: 1024) { context, size in
+            let skyStops: [UIColor]
+            switch mode {
+            case .day:
+                skyStops = [
+                    UIColor(red: 0.075, green: 0.28, blue: 0.60, alpha: 1),
+                    UIColor(red: 0.27, green: 0.58, blue: 0.85, alpha: 1),
+                    UIColor(red: 0.75, green: 0.85, blue: 0.94, alpha: 1)
+                ]
+            case .sunset:
+                skyStops = [
+                    UIColor(red: 0.048, green: 0.11, blue: 0.29, alpha: 1),
+                    UIColor(red: 0.43, green: 0.29, blue: 0.45, alpha: 1),
+                    UIColor(red: 0.98, green: 0.63, blue: 0.37, alpha: 1)
+                ]
+            case .night:
+                skyStops = [
+                    UIColor(red: 0.006, green: 0.014, blue: 0.04, alpha: 1),
+                    UIColor(red: 0.035, green: 0.052, blue: 0.12, alpha: 1),
+                    UIColor(red: 0.12, green: 0.12, blue: 0.20, alpha: 1)
+                ]
             }
-            for _ in 0..<110 {
-                let px = random() * size.width
-                let py = random() * size.height * 0.66
-                UIColor(white: 0.88, alpha: 0.08 + random() * 0.50).setFill()
-                context.fill(CGRect(x: px, y: py, width: 1, height: 1))
+            if let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                                         colors: skyStops.map(\.cgColor) as CFArray,
+                                         locations: [0, 0.56, 1]) {
+                context.drawLinearGradient(gradient, start: .zero,
+                                           end: CGPoint(x: 0, y: size.height), options: [])
+            }
+            var seed: UInt32 = 0xA528CB31
+            func rnd() -> CGFloat {
+                seed = 1664525 &* seed &+ 1013904223
+                return CGFloat(seed % 10000) / 10000
+            }
+            if mode == .night {
+                for _ in 0..<170 {
+                    let x = rnd() * size.width
+                    let y = rnd() * size.height * 0.60
+                    UIColor(white: 1, alpha: 0.12 + rnd() * 0.55).setFill()
+                    context.fill(CGRect(x: x, y: y, width: 1, height: 1))
+                }
+            } else {
+                // Blended multi-layer clouds: low-contrast broad clusters
+                // rather than isolated bright white cartoon clouds.
+                for i in 0..<80 {
+                    let x = rnd() * size.width
+                    let y = 110 + rnd() * 500
+                    let w: CGFloat = 65 + rnd() * 150
+                    let h: CGFloat = 5 + rnd() * 22
+                    let tint = mode == .day ? UIColor.white :
+                        UIColor(red: 1, green: 0.72, blue: 0.58, alpha: 1)
+                    tint.withAlphaComponent(0.018 + rnd() * 0.052).setFill()
+                    let rect = CGRect(x: x, y: y, width: w, height: h)
+                    context.fillEllipse(in: rect)
+                    if i.isMultiple(of: 3) {
+                        context.fillEllipse(in: rect.offsetBy(dx: 28, dy: -7))
+                    }
+                }
+                let sunY: CGFloat = mode == .sunset ? size.height * 0.68 : size.height * 0.34
+                let sunColor = UIColor(red: 1, green: 0.88, blue: 0.65, alpha: 1)
+                let sun = CGPoint(x: size.width * 0.73, y: sunY)
+                for radius in stride(from: 85.0, through: 17.0, by: -9) {
+                    sunColor.withAlphaComponent(0.012).setFill()
+                    context.fillEllipse(in: CGRect(x: sun.x - radius, y: sun.y - radius,
+                                                    width: radius * 2, height: radius * 2))
+                }
+                sunColor.withAlphaComponent(mode == .sunset ? 0.62 : 0.36).setFill()
+                context.fillEllipse(in: CGRect(x: sun.x - 9, y: sun.y - 9,
+                                                width: 18, height: 18))
             }
         }
     }
