@@ -39,6 +39,8 @@ final class DrivingWorld {
     private var impactShake = 0.0
     private var currentQuality: GraphicsQuality?
     private var directionalLight: SCNLight?
+    private var ambientLight: SCNLight?
+    private var displayedTimeOfDay: StreetTimeOfDay?
 
     init() {
         createEnvironment()
@@ -73,6 +75,9 @@ final class DrivingWorld {
             for asphalt in asphaltMaterials { asphalt.normal.intensity = wet ? 0.44 : 0.45 }
             scene.fogStartDistance = wet ? 100 : 150
             scene.fogEndDistance = wet ? 330 : 440
+        }
+        if displayedTimeOfDay != session.timeOfDay {
+            configureTimeOfDay(session.timeOfDay)
         }
         weatherFX.update(x: positionX, z: positionZ)
 
@@ -113,6 +118,43 @@ final class DrivingWorld {
             rivalGhost.isHidden = true
         }
         updateCamera(delta, session: session)
+    }
+
+    private func configureTimeOfDay(_ mode: StreetTimeOfDay) {
+        displayedTimeOfDay = mode
+        let sky = CityVisuals.sky(mode)
+        scene.background.contents = sky
+        scene.lightingEnvironment.contents = mode == .night
+            ? (CityVisuals.urbanLightingProbe() ?? sky) : sky
+        switch mode {
+        case .day:
+            ambientLight?.intensity = 1050
+            ambientLight?.color = UIColor(red: 0.77, green: 0.87, blue: 1, alpha: 1)
+            directionalLight?.intensity = 2650
+            directionalLight?.color = UIColor(red: 1, green: 0.94, blue: 0.82, alpha: 1)
+            scene.lightingEnvironment.intensity = 1.9
+            scene.fogColor = UIColor(red: 0.54, green: 0.68, blue: 0.78, alpha: 1)
+            camera.camera?.exposureOffset = -0.12
+        case .sunset:
+            ambientLight?.intensity = 720
+            ambientLight?.color = UIColor(red: 0.81, green: 0.70, blue: 0.78, alpha: 1)
+            directionalLight?.intensity = 2380
+            directionalLight?.color = UIColor(red: 1, green: 0.69, blue: 0.43, alpha: 1)
+            scene.lightingEnvironment.intensity = 1.8
+            scene.fogColor = UIColor(red: 0.38, green: 0.31, blue: 0.35, alpha: 1)
+            camera.camera?.exposureOffset = 0.0
+        case .night:
+            ambientLight?.intensity = 480
+            ambientLight?.color = UIColor(red: 0.53, green: 0.65, blue: 1, alpha: 1)
+            directionalLight?.intensity = 1070
+            directionalLight?.color = UIColor(red: 0.70, green: 0.79, blue: 0.98, alpha: 1)
+            scene.lightingEnvironment.intensity = 1.25
+            scene.fogColor = UIColor(red: 0.02, green: 0.03, blue: 0.065, alpha: 1)
+            camera.camera?.exposureOffset = -0.50
+        }
+        // Windows are no longer fully lit at noon; night façades become alive.
+        let emission: CGFloat = mode == .day ? 0.08 : mode == .sunset ? 0.22 : 0.55
+        for style in CityArchitecture.presets { style.walls.emission.intensity = emission }
     }
 
     private func configureGraphics(_ quality: GraphicsQuality) {
@@ -339,10 +381,12 @@ final class DrivingWorld {
     }
 
     private func createEnvironment() {
-        let skyTexture = CityVisuals.sky()
+        // Lighting and backdrop are configured from the selected time of day.
+        // No persistent night-only darkness when selecting Daylight / Sunset.
+        let skyTexture = CityVisuals.sky(.sunset)
         scene.background.contents = skyTexture
-        scene.lightingEnvironment.contents = CityVisuals.urbanLightingProbe() ?? skyTexture
-        scene.lightingEnvironment.intensity = CityVisuals.urbanLightingProbe() == nil ? 0.9 : 1.25
+        scene.lightingEnvironment.contents = skyTexture
+        scene.lightingEnvironment.intensity = 1.4
         scene.fogColor = UIColor(red: 0.02, green: 0.03, blue: 0.065, alpha: 1)
         scene.fogStartDistance = 150
         scene.fogEndDistance = 440
@@ -350,6 +394,7 @@ final class DrivingWorld {
         let ambient = SCNLight()
         ambient.type = .ambient
         ambient.intensity = 480
+        ambientLight = ambient
         ambient.color = UIColor(red: 0.53, green: 0.65, blue: 1, alpha: 1)
         let ambientNode = SCNNode()
         ambientNode.light = ambient
