@@ -40,6 +40,6 @@ enum VehicleAssetLoader {
         // If wheels are not properly rigged, render the model but leave wheel
         // steering disabled rather than modifying someone else's mesh.
         parent.addChildNode(modelRoot)
-        return VehicleArt.Assembly(wheels: wheels.count == 4 ? wheels : [], flames: [])
+        return VehicleArt.Assembly(wheels: wheels.count == 4 ? wheels : [], flames: [], brakeLights: [])
     }
 }

@@ -7,12 +7,15 @@ enum VehicleArt {
     struct Assembly {
         let wheels: [SCNNode]
         let flames: [SCNNode]
+        let brakeLights: [SCNMaterial]
     }
 
     static func install(into car: SCNNode, paint: SCNMaterial) -> Assembly {
         let black = mat(UIColor(red: 0.018, green: 0.021, blue: 0.030, alpha: 1), metal: 0.20, rough: 0.69)
         let carbon = mat(UIColor(red: 0.055, green: 0.065, blue: 0.085, alpha: 1), metal: 0.6, rough: 0.25)
         let glass = mat(UIColor(red: 0.05, green: 0.12, blue: 0.19, alpha: 1), metal: 0.22, rough: 0.14)
+        glass.transparency = 0.72
+        glass.transparencyMode = .dualLayer
         let steel = mat(UIColor(red: 0.43, green: 0.49, blue: 0.57, alpha: 1), metal: 0.85, rough: 0.25)
         let headlamp = emissive(UIColor(red: 0.80, green: 0.94, blue: 1, alpha: 1), strength: 1.4)
         let tailLamp = emissive(UIColor(red: 1, green: 0.06, blue: 0.09, alpha: 1), strength: 1.5)
@@ -139,10 +142,10 @@ enum VehicleArt {
         let lamp = SCNNode()
         lamp.light = headlight
         lamp.position = SCNVector3(0, 1.05, -2.26)
-        lamp.eulerAngles.x = -.pi / 2
+        // SceneKit spotlights project down local -Z: the vehicle front is -Z.
         car.addChildNode(lamp)
 
-        return Assembly(wheels: wheels, flames: flames)
+        return Assembly(wheels: wheels, flames: flames, brakeLights: [tailLamp])
     }
 
     static func mat(_ color: UIColor, metal: CGFloat, rough: CGFloat) -> SCNMaterial {

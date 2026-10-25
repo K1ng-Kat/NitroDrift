@@ -16,6 +16,7 @@ final class DrivingWorld {
     private let camera = SCNNode()
     private var paintMaterial = SCNMaterial()
     private var nitroFlames: [SCNNode] = []
+    private var brakeLights: [SCNMaterial] = []
     private var wheelNodes: [SCNNode] = []
     private let rivalGhost = SCNNode()
 
@@ -186,6 +187,9 @@ final class DrivingWorld {
             wheel.childNode(withName: "roll", recursively: false)?.eulerAngles.x += Float(velocity * dt / 0.49)
             if index < 2 { wheel.eulerAngles.y = Float(frame.steering * 0.90) }
         }
+
+        let braking = input.brake || input.analogBrake > 0.1
+        for lamp in brakeLights { lamp.emission.intensity = braking ? 3.5 : 1.4 }
 
         for (index, flame) in nitroFlames.enumerated() {
             flame.isHidden = !canNitro
@@ -502,11 +506,13 @@ final class DrivingWorld {
                                                                   paint: paintMaterial) {
             wheelNodes = highDetail.wheels
             nitroFlames = highDetail.flames
+            brakeLights = highDetail.brakeLights
             car.scale = SCNVector3(1, 1, 1)
         } else {
             let parts = VehicleArt.install(into: car, paint: paintMaterial)
             wheelNodes = parts.wheels
             nitroFlames = parts.flames
+            brakeLights = parts.brakeLights
             let tier = Float(style.rawValue)
             car.scale = SCNVector3(1 + tier * 0.07, 1 - tier * 0.025, 1 + tier * 0.08)
         }
