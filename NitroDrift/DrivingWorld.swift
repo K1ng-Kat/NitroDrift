@@ -8,6 +8,7 @@ final class DrivingWorld {
     let scene = SCNScene()
     private lazy var streets = StreetSystems(scene: scene)
     private lazy var tireTrails = TireTrails(scene: scene)
+    private let tireSpray = TireSpray()
     private lazy var weatherFX = StreetWeather(scene: scene)
     private var displayedWeather: StreetWeatherMode = .dry
     private var asphaltMaterial: SCNMaterial?
@@ -95,6 +96,7 @@ final class DrivingWorld {
             simulate(delta, session: session)
         } else {
             nitroFlames.forEach { $0.isHidden = true }
+            tireSpray.update(wet: false, speed: 0, quality: session.graphicsQuality)
         }
 
         if session.mode == .online && session.phase == .driving && OnlineRacing.shared.connected,
@@ -178,6 +180,8 @@ final class DrivingWorld {
         positionZ = dynamics.z
         heading = dynamics.heading
         velocity = max(0, dynamics.speed)
+        tireSpray.update(wet: session.weather == .rain, speed: velocity,
+                         quality: session.graphicsQuality)
 
         let impact = streets.advance(dt, x: positionX, z: positionZ, speed: velocity, session: session)
         if impact > 0 {
@@ -525,6 +529,7 @@ final class DrivingWorld {
             let tier = Float(style.rawValue)
             car.scale = SCNVector3(1 + tier * 0.07, 1 - tier * 0.025, 1 + tier * 0.08)
         }
+        tireSpray.attach(to: car)
     }
 
     private func makeGhost() {
