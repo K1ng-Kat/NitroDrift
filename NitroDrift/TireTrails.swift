@@ -49,7 +49,7 @@ final class TireTrails {
                                        Float(z + sin(heading) * wheelX + cos(heading) * 1.48))
             node.eulerAngles.y = Float(-heading)
             node.isHidden = false
-            node.opacity = Float(min(0.72, max(0.18, intensity * 1.7)))
+            node.opacity = CGFloat(min(0.72, max(0.18, intensity * 1.7)))
         }
     }
 }
