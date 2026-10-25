@@ -55,6 +55,50 @@ struct PhysicsSmoke {
         precondition(abs(dryYaw - wetYaw) > 0.02,
                      "Wet surfaces must alter grip and cornering")
 
+        // Regression: the regular brake must never behave like a locked
+        // handbrake and throw the car sideways when steering is released.
+        for wet in [false, true] {
+            var stop = CarDynamics()
+            stop.speed = 26.0
+            stop.lateralSpeed = 1.5
+            stop.yawRate = 0.27
+            let originalHeading = stop.heading
+            var footBrake = DriverInput()
+            footBrake.brake = true
+            for frame in 0..<240 {
+                let state = stop.step(dt: dt, input: footBrake,
+                                      engine: 1, handling: 1, brakes: 0,
+                                      carTier: 0, assist: true, boosting: false,
+                                      surfaceGrip: wet ? 0.73 : 1.0)
+                precondition(state.speed.isFinite && state.slipAngle.isFinite)
+                precondition(abs(stop.yawRate) < 1.0,
+                             "Regular brake caused runaway yaw at frame \(frame)")
+            }
+            precondition(stop.speed < 7, "Foot brake did not stop car")
+            precondition(abs(stop.heading - originalHeading) < 0.45,
+                         "Regular brake swung car sideways")
+            precondition(abs(stop.yawRate) < 0.08, "Car still spins while braking")
+        }
+        // Left/right holding, then releasing and braking should be stable.
+        var releaseTest = CarDynamics()
+        releaseTest.speed = 20
+        var turn = DriverInput()
+        turn.left = true
+        for _ in 0..<42 {
+            _ = releaseTest.step(dt: dt, input: turn,
+                                  engine: 0, handling: 0, brakes: 0, carTier: 0,
+                                  assist: true, boosting: false)
+        }
+        var stopStraight = DriverInput()
+        stopStraight.brake = true
+        for _ in 0..<150 {
+            let state = releaseTest.step(dt: dt, input: stopStraight,
+                                          engine: 0, handling: 0, brakes: 0, carTier: 0,
+                                          assist: true, boosting: false)
+            precondition(state.heading.isFinite && abs(releaseTest.yawRate) < 1.0,
+                         "Sudden spin after turn-release and brake")
+        }
+
         var handbrake = DriverInput()
         handbrake.analogThrottle = 0.65
         handbrake.analogSteering = -0.4
