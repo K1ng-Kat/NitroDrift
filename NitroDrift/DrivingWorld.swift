@@ -334,9 +334,9 @@ final class DrivingWorld {
                 targetX += forwardX * 9
                 targetZ += forwardZ * 9
             default: // chase
-                let trailingDistance = 7.8 + min(3.0, velocity * 0.052)
+                let trailingDistance = 6.5 + min(2.7, velocity * 0.045)
                 desiredX = positionX - forwardX * trailingDistance
-                desiredY = 3.2 + min(0.65, velocity * 0.015)
+                desiredY = 2.45 + min(0.72, velocity * 0.014)
                 desiredZ = positionZ - forwardZ * trailingDistance
                 targetX += forwardX * 10
                 targetY = 1.25
@@ -359,7 +359,7 @@ final class DrivingWorld {
         }
 
         // Narrow enough for readable corners, wider with speed for depth cues.
-        let desiredFOV = session.phase == .driving ? 64.0 + min(15.0, velocity * 0.24) : 61.0
+        let desiredFOV = session.phase == .driving ? 61.0 + min(10.0, velocity * 0.20) : 57.0
         let oldFOV = Double(camera.camera?.fieldOfView ?? 68.0)
         camera.camera?.fieldOfView = CGFloat(oldFOV + (desiredFOV - oldFOV) * min(1, dt * 3.4))
 
@@ -629,6 +629,20 @@ final class DrivingWorld {
         scene.rootNode.addChildNode(car)
         vehicleVisual.name = "car-visual-forward-minus-z"
         car.addChildNode(vehicleVisual)
+        // Soft chassis/tire contact shadow makes the car look grounded.
+        let shadowMaterial = SCNMaterial()
+        shadowMaterial.diffuse.contents = CityVisuals.contactShadow()
+        shadowMaterial.lightingModel = .constant
+        shadowMaterial.transparencyMode = .dualLayer
+        shadowMaterial.writesToDepthBuffer = false
+        shadowMaterial.isDoubleSided = true
+        let shadow = SCNNode(geometry: SCNPlane(width: 3.3, height: 5.5))
+        shadow.geometry?.firstMaterial = shadowMaterial
+        shadow.position = SCNVector3(0, 0.076, 0)
+        shadow.eulerAngles.x = -.pi / 2
+        shadow.castsShadow = false
+        shadow.categoryBitMask = 2
+        car.addChildNode(shadow)
         installCarGeometry(style: .street)
     }
 
