@@ -2,7 +2,21 @@ import UIKit
 import SceneKit
 
 enum CityVisuals {
-    static func roadMaterial() -> SCNMaterial {
+    private static func packagedMap(_ role: String) -> UIImage? {
+        for ext in ["jpg", "png"] {
+            if let url = Bundle.main.url(forResource: "asphalt_" + role,
+                                         withExtension: ext,
+                                         subdirectory: "Assets.scnassets/Surfaces"),
+               let image = UIImage(contentsOfFile: url.path) {
+                return image
+            }
+        }
+        return nil
+    }
+
+    static func roadRoughness() -> Any { packagedMap("roughness") ?? 0.77 as Any }
+
+    static func roadMaterial(horizontal: Bool = false) -> SCNMaterial {
         let image = texture(size: 256) { context, size in
             UIColor(red: 0.10, green: 0.105, blue: 0.125, alpha: 1).setFill()
             context.fill(CGRect(origin: .zero, size: size))
@@ -27,12 +41,26 @@ enum CityVisuals {
             context.strokePath()
         }
         let mat = SCNMaterial()
-        mat.diffuse.contents = image
+        mat.diffuse.contents = packagedMap("diffuse") ?? image
         mat.diffuse.wrapS = .repeat
         mat.diffuse.wrapT = .repeat
-        mat.diffuse.contentsTransform = SCNMatrix4MakeScale(18, 18, 1)
-        mat.roughness.contents = 0.77
-        mat.metalness.contents = 0.08
+        // Physical texel scale should not change drastically with road
+        // orientation. Long 1040 m strips repeat ~130 times down their length.
+        let tiled = horizontal ? SCNMatrix4MakeScale(130, 3.0, 1)
+                               : SCNMatrix4MakeScale(3.0, 130, 1)
+        mat.diffuse.contentsTransform = tiled
+        mat.normal.contentsTransform = tiled
+        mat.roughness.contentsTransform = tiled
+        mat.diffuse.wrapS = .repeat
+        mat.diffuse.wrapT = .repeat
+        mat.normal.wrapS = .repeat
+        mat.normal.wrapT = .repeat
+        mat.roughness.wrapS = .repeat
+        mat.roughness.wrapT = .repeat
+        mat.roughness.contents = packagedMap("roughness") ?? 0.77 as Any
+        mat.normal.contents = packagedMap("normal") ?? cachedRoadNormals
+        mat.normal.intensity = 0.45
+        mat.metalness.contents = 0.03
         mat.lightingModel = .physicallyBased
         return mat
     }
@@ -42,8 +70,8 @@ enum CityVisuals {
     private static let cachedRoadNormals = makeNormalTexture(wet: false)
     private static let cachedWetNormals = makeNormalTexture(wet: true)
 
-    static func roadNormalMap() -> UIImage { cachedRoadNormals }
-    static func rainNormalMap() -> UIImage { cachedWetNormals }
+    static func roadNormalMap() -> UIImage { packagedMap("normal") ?? cachedRoadNormals }
+    static func rainNormalMap() -> UIImage { packagedMap("normal") ?? cachedWetNormals }
 
     private static func makeNormalTexture(wet: Bool) -> UIImage {
         let side = 128
