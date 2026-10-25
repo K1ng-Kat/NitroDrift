@@ -13,7 +13,7 @@ struct NitroDriftRootView: View {
 
                 if session.phase != .driving {
                     LinearGradient(
-                        colors: [.black.opacity(0.88), .black.opacity(0.36), .clear],
+                        colors: [.black.opacity(0.68), .black.opacity(0.24), .clear],
                         startPoint: .leading,
                         endPoint: .trailing
                     )

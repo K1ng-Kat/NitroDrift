@@ -49,11 +49,21 @@ struct NitroButton: View {
             .padding(.horizontal, 17)
             .frame(minHeight: 52)
             .contentShape(Rectangle())
-            .background(highlighted ? NitroTheme.cyan : .white.opacity(0.10))
-            .clipShape(RoundedRectangle(cornerRadius: 11))
+                        .background {
+                RoundedRectangle(cornerRadius: 13)
+                    .fill(
+                        LinearGradient(
+                            colors: highlighted
+                                ? [NitroTheme.cyan, NitroTheme.cyan.opacity(0.78)]
+                                : [.white.opacity(0.18), .white.opacity(0.065)],
+                            startPoint: .topLeading, endPoint: .bottomTrailing
+                        )
+                    )
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 13))
             .overlay {
                 RoundedRectangle(cornerRadius: 11)
-                    .strokeBorder(.white.opacity(highlighted ? 0 : 0.12), lineWidth: 1)
+                    .strokeBorder(.white.opacity(highlighted ? 0.18 : 0.20), lineWidth: 1)
             }
         }
         .buttonStyle(NitroPressStyle())
@@ -82,7 +92,16 @@ struct GlassPanel<Content: View>: View {
     var body: some View {
         content
             .padding(18)
-            .background(NitroTheme.panel.opacity(0.92))
+            .background {
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(
+                        LinearGradient(
+                            colors: [NitroTheme.panel.opacity(0.95),
+                                     NitroTheme.background.opacity(0.84)],
+                            startPoint: .topLeading, endPoint: .bottomTrailing
+                        )
+                    )
+            }
             .clipShape(RoundedRectangle(cornerRadius: 20))
             .overlay {
                 RoundedRectangle(cornerRadius: 20)
@@ -144,6 +163,9 @@ final class RacingTouchControl: UIControl {
     private let caption = UILabel()
     private var tint = UIColor.cyan
     private var down = false
+    private var configuredTitle = ""
+    private var configuredSymbol = ""
+    private var configuredTint = UIColor.clear
     private let fill = UIView()
 
     override init(frame: CGRect) {
@@ -185,6 +207,13 @@ final class RacingTouchControl: UIControl {
     required init?(coder: NSCoder) { fatalError("init(coder:) is unavailable") }
 
     func configure(title: String, symbol: String, tint: UIColor) {
+        // SwiftUI updates 10+ times/sec for the speedometer: avoid rebuilding
+        // images and button layers on every unrelated frame of HUD telemetry.
+        if configuredTitle == title && configuredSymbol == symbol &&
+           configuredTint.isEqual(tint) { return }
+        configuredTitle = title
+        configuredSymbol = symbol
+        configuredTint = tint
         self.tint = tint
         caption.text = title
         iconView.image = UIImage(systemName: symbol)?.withRenderingMode(.alwaysTemplate)
