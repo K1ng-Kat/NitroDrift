@@ -1,0 +1,63 @@
+#!/bin/bash
+set -euo pipefail
+
+PROJECT="$HOME/Documents/NitroDrift"
+REPO="https://github.com/K1ng-Kat/NitroDrift.git"
+
+printf '\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'
+printf '     NITRODRIFT GITHUB SYNC\n'
+printf '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n'
+printf '📁 Project: %s\n' "$PROJECT"
+
+if [[ ! -e "$PROJECT" ]]; then
+  printf '📦 Project missing — cloning from GitHub...\n'
+  mkdir -p "$HOME/Documents"
+  git clone "$REPO" "$PROJECT"
+fi
+
+if ! git -C "$PROJECT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  printf '❌ Existing NitroDrift folder is not a Git repository. Nothing changed.\n'
+  exit 1
+fi
+
+cd "$PROJECT"
+
+remote="$(git remote get-url origin 2>/dev/null || true)"
+case "$remote" in
+  "$REPO"|"https://github.com/K1ng-Kat/NitroDrift"|"git@github.com:K1ng-Kat/NitroDrift.git")
+    ;;
+  *)
+    printf '❌ Unexpected Git remote: %s\n' "$remote"
+    printf 'Nothing changed.\n'
+    exit 1
+    ;;
+esac
+
+if [[ -n "$(git status --porcelain --untracked-files=normal)" ]]; then
+  printf '⚠️ Local changes detected. Nothing overwritten.\n'
+  git status --short
+  printf 'Commit, stash, or remove local changes before syncing.\n'
+  exit 1
+fi
+
+printf '🔄 Fetching latest GitHub main...\n'
+git fetch origin main
+
+if git show-ref --verify --quiet refs/heads/main; then
+  git switch main
+else
+  git switch --track -c main origin/main
+fi
+
+printf '📥 Updating local project...\n'
+git merge --ff-only origin/main
+
+if [[ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]]; then
+  printf '⚠️ Local commits differ from origin/main. Nothing overwritten.\n'
+  exit 1
+fi
+
+printf '\n✅ NITRODRIFT FULLY SYNCED!\n'
+printf '✅ Local matches GitHub main\n'
+printf '🔖 Commit: %s\n' "$(git rev-parse --short HEAD)"
+printf '📂 %s\n\n' "$PROJECT"
