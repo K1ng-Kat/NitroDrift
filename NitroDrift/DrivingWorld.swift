@@ -15,6 +15,7 @@ final class DrivingWorld {
     private var wheelNodes: [SCNNode] = []
     private let rivalGhost = SCNNode()
 
+    private var dynamics = CarDynamics()
     private var positionX = 0.0
     private var positionZ = 35.0
     private var heading = 0.0
@@ -81,9 +82,10 @@ final class DrivingWorld {
     }
 
     private func resetCar() {
-        positionX = 0
-        positionZ = 35
-        heading = 0
+        dynamics.reset()
+        positionX = dynamics.x
+        positionZ = dynamics.z
+        heading = dynamics.heading
         velocity = 0
         currentNitro = 100
         driftElapsed = 0
@@ -93,81 +95,68 @@ final class DrivingWorld {
 
     private func simulate(_ dt: Double, session: GameSession) {
         let input = session.input
-        let upgrade = Double(session.engineLevel)
-        let grip = Double(session.handlingLevel)
-        let maxSpeed = 46.0 + upgrade * 5.0 + session.carStyle.speedBonus // metres/second
-        let canNitro = input.nitro && input.gas && currentNitro > 0.3 && velocity > 3
-        let boostedTopSpeed = maxSpeed + (canNitro ? (14.0 + Double(session.nitroLevel) * 3.0) : 0.0)
+        let canNitro = input.nitro && input.gas && currentNitro > 0.4 && velocity > 2
+        let meterDrain = max(12, 23 - Double(session.nitroLevel) * 1.8)
+        currentNitro = min(100, max(0, currentNitro + (canNitro ? -meterDrain : 6.5) * dt))
 
-        if input.gas {
-            velocity += (13.5 + upgrade * 2.5 + (canNitro ? 23.0 : 0.0)) * dt
-        } else {
-            velocity -= (2.7 + velocity * 0.035) * dt
+        // Integrate at fixed substeps for predictable driving at 30–120 fps.
+        let count = max(1, Int(ceil(dt / (1.0 / 90.0))))
+        let substep = dt / Double(count)
+        var frame = dynamics.step(dt: 0, input: input, engine: session.engineLevel,
+                                  handling: session.handlingLevel, brakes: session.brakeLevel,
+                                  carTier: session.carStyle.rawValue,
+                                  assist: session.handlingAssist, boosting: canNitro)
+        let previousX = dynamics.x, previousZ = dynamics.z
+        for _ in 0..<count {
+            frame = dynamics.step(dt: substep, input: input, engine: session.engineLevel,
+                                  handling: session.handlingLevel, brakes: session.brakeLevel,
+                                  carTier: session.carStyle.rawValue,
+                                  assist: session.handlingAssist, boosting: canNitro)
+        }
+        let roadX = abs(dynamics.x - (dynamics.x / 150.0).rounded() * 150.0)
+        let roadZ = abs(dynamics.z - (dynamics.z / 150.0).rounded() * 150.0)
+        let withinMap = abs(dynamics.x) < 497 && abs(dynamics.z) < 497
+        if !withinMap || (roadX > 10.9 && roadZ > 10.9) {
+            // Soft collision with the curb/building perimeter. Keep heading
+            // intact but do not teleport or propel through solid blocks.
+            dynamics.x = previousX
+            dynamics.z = previousZ
+            dynamics.impact(strength: 0.60)
+            session.damage = min(100, session.damage + 0.08)
         }
 
-        if input.brake {
-            velocity -= (26.0 + Double(session.brakeLevel) * 4.8) * dt
+        positionX = dynamics.x
+        positionZ = dynamics.z
+        heading = dynamics.heading
+        velocity = max(0, dynamics.speed)
+
+        let impact = streets.advance(dt, x: positionX, z: positionZ, speed: velocity, session: session)
+        if impact > 0 {
+            dynamics.impact(strength: impact)
+            velocity = dynamics.speed
         }
 
-        velocity = min(boostedTopSpeed, max(0, velocity))
-        if canNitro {
-            currentNitro = max(0, currentNitro - dt * max(13, 26 - Double(session.nitroLevel) * 2))
-        } else {
-            currentNitro = min(100, currentNitro + dt * 5.0)
-        }
-
-        let steering = Double((input.right ? 1 : 0) - (input.left ? 1 : 0))
-        let speedFactor = min(1, velocity / 13.0)
-        let steeringPower = (session.handlingAssist ? 1.02 : 1.28) + grip * 0.085
-        heading += steering * steeringPower * speedFactor * dt
-
-        // A controlled amount of lateral slide rewards high-speed cornering.
-        let isDrifting = abs(steering) > 0.1 && velocity > 17
-        let slide = isDrifting ? steering * max(0.035, (session.handlingAssist ? 0.095 : 0.18) - grip * 0.008) * velocity * dt : 0
-        let forwardX = sin(heading)
-        let forwardZ = -cos(heading)
-        let nextX = positionX + forwardX * velocity * dt + cos(heading) * slide
-        let nextZ = positionZ + forwardZ * velocity * dt + sin(heading) * slide
-
-        // Roads form a 150 m grid. Streets are 24 m across and off-road blocks
-        // are solid; a future milestone will add real vehicle collision meshes.
-        let distanceFromNSRoad = abs(nextX - (nextX / 150.0).rounded() * 150.0)
-        let distanceFromEWRoad = abs(nextZ - (nextZ / 150.0).rounded() * 150.0)
-        let withinMap = abs(nextX) < 505 && abs(nextZ) < 505
-        if withinMap && (distanceFromNSRoad < 10.5 || distanceFromEWRoad < 10.5) {
-            positionX = nextX
-            positionZ = nextZ
-        } else {
-            velocity *= 0.68
-        }
-
-        let crash = streets.advance(dt, x: positionX, z: positionZ, speed: velocity, session: session)
-        if crash > 0 {
-            velocity *= 1 - crash
-        }
-
-        car.position = SCNVector3(Float(positionX), 0, Float(positionZ))
-        car.eulerAngles.y = Float(-heading)
+        car.position = SCNVector3(Float(positionX), Float(0.012 + sin(elapsed * 12) * min(velocity, 24) * 0.00035), Float(positionZ))
+        car.eulerAngles = SCNVector3(Float(frame.pitch), Float(-heading), Float(frame.roll))
 
         for (index, wheel) in wheelNodes.enumerated() {
-            wheel.childNode(withName: "tire", recursively: false)?.eulerAngles.x += Float(velocity * dt / 0.50)
-            if index < 2 {
-                wheel.eulerAngles.y = Float(steering * 0.28)
-            }
+            // The wheels are physically oriented on the X axis.
+            wheel.childNode(withName: "tire", recursively: false)?.eulerAngles.z += Float(velocity * dt / 0.50)
+            if index < 2 { wheel.eulerAngles.y = Float(frame.steering * 0.90) }
         }
 
         for (index, flame) in nitroFlames.enumerated() {
             flame.isHidden = !canNitro
             if canNitro {
-                let size = Float(0.8 + 0.3 * sin(elapsed * 24 + Double(index)))
-                flame.scale = SCNVector3(1, size, 1)
+                flame.scale = SCNVector3(1, Float(0.85 + 0.17 * sin(elapsed * 27 + Double(index))), 1)
             }
         }
 
+        let slip = abs(frame.slipAngle)
         driftElapsed += dt
-        if isDrifting && driftElapsed >= 0.16 {
-            let points = Int((velocity / 4.0 + grip * 2.0).rounded())
-            session.addDrift(points: max(points, 2))
+        if velocity > 13 && slip > 0.075 && driftElapsed > 0.25 {
+            let score = Int(velocity * min(0.4, slip) * 1.8)
+            session.addDrift(points: max(2, score))
             driftElapsed = 0
         }
 
@@ -188,13 +177,13 @@ final class DrivingWorld {
                 let dx = gate.0 - positionX
                 let dz = gate.1 - positionZ
                 session.nextGateDistance = Int(hypot(dx, dz))
-                let direction = atan2(dx, -dz) - heading
-                let relative = atan2(sin(direction), cos(direction))
+                let difference = atan2(dx, -dz) - heading
+                let relative = atan2(sin(difference), cos(difference))
                 session.nextGateDirection = relative > 0.45 ? "↗" : relative < -0.45 ? "↖" : "↑"
             }
             session.speedKPH = Int((velocity * 3.6).rounded())
             session.nitro = currentNitro
-            session.gear = max(1, min(6, Int(velocity * 3.6 / 47.0) + 1))
+            session.gear = max(1, min(6, Int(velocity * 3.6 / 40.0) + 1))
             hudElapsed = 0
         }
     }
