@@ -144,14 +144,16 @@ struct NitroDriftRootView: View {
                                 } label: {
                                     Circle()
                                         .fill(Color(uiColor: paint.color))
-                                        .frame(width: 28, height: 28)
+                                        .frame(width: 37, height: 37)
+                                        .frame(width: 48, height: 48)
+                                        .contentShape(Rectangle())
                                         .overlay {
                                             Circle()
                                                 .strokeBorder(.white, lineWidth: session.paint == paint ? 3 : 0)
                                                 .padding(-3)
                                         }
                                 }
-                                .buttonStyle(.plain)
+                                .buttonStyle(NitroPressStyle())
                                 .accessibilityLabel(paint.title)
                             }
                         }
@@ -309,10 +311,12 @@ struct NitroDriftRootView: View {
             } label: {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 15, weight: .black))
-                    .frame(width: 35, height: 35)
+                    .frame(width: 50, height: 50)
+                    .contentShape(Rectangle())
                     .background(.white.opacity(0.10), in: RoundedRectangle(cornerRadius: 9))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(NitroPressStyle())
+            .accessibilityLabel("Back to main menu")
 
             Text(title)
                 .font(.system(size: 19, weight: .black, design: .rounded))

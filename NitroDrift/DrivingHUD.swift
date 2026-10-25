@@ -21,9 +21,11 @@ struct DrivingHUD: View {
                         HoldDriveButton(label: "LEFT", symbol: "arrow.left",
                                         width: control, height: height,
                                         onPressed: { session.input.left = $0 })
+                            .frame(width: control, height: height)
                         HoldDriveButton(label: "RIGHT", symbol: "arrow.right",
                                         width: control, height: height,
                                         onPressed: { session.input.right = $0 })
+                            .frame(width: control, height: height)
 
                         Spacer(minLength: 2)
 
@@ -55,18 +57,22 @@ struct DrivingHUD: View {
                                         color: NitroTheme.orange,
                                         width: compact ? 48 : 64, height: height - 6,
                                         onPressed: { session.input.handbrake = $0 })
+                            .frame(width: compact ? 48 : 64, height: height - 6)
                         HoldDriveButton(label: "BRAKE", symbol: "minus",
                                         color: NitroTheme.orange,
                                         width: control, height: height,
                                         onPressed: { session.input.brake = $0 })
+                            .frame(width: control, height: height)
                         HoldDriveButton(label: "GAS", symbol: "arrow.up",
                                         width: control, height: height,
                                         onPressed: { session.input.gas = $0 })
+                            .frame(width: control, height: height)
                         VStack(spacing: 5) {
                             HoldDriveButton(label: "NITRO", symbol: "bolt.fill",
                                             color: NitroTheme.orange,
                                             width: control, height: height - 14,
                                             onPressed: { session.input.nitro = $0 })
+                                .frame(width: control, height: height - 14)
                             GeometryReader { bounds in
                                 ZStack(alignment: .leading) {
                                     Capsule().fill(.white.opacity(0.19))
@@ -180,11 +186,11 @@ struct DrivingHUD: View {
             Image(systemName: symbol)
                 .font(.system(size: 17, weight: .bold))
                 .foregroundStyle(.white)
-                .frame(width: 47, height: 47)
+                .frame(width: 52, height: 52)
                 .background(.black.opacity(0.73), in: RoundedRectangle(cornerRadius: 12))
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.borderless)
+        .buttonStyle(NitroPressStyle())
         .accessibilityLabel(accessibility)
     }
 }

@@ -56,9 +56,19 @@ struct NitroButton: View {
                     .strokeBorder(.white.opacity(highlighted ? 0 : 0.12), lineWidth: 1)
             }
         }
-        .buttonStyle(.borderless)
+        .buttonStyle(NitroPressStyle())
         .opacity(disabled ? 0.4 : 1)
         .disabled(disabled)
+    }
+}
+
+/// Consistent pressed feedback for all menu, garage and navigation buttons.
+struct NitroPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.982 : 1)
+            .brightness(configuration.isPressed ? 0.045 : 0)
+            .animation(.easeOut(duration: 0.075), value: configuration.isPressed)
     }
 }
 
@@ -102,6 +112,7 @@ struct HoldDriveButton: UIViewRepresentable {
         }
         control.isExclusiveTouch = false
         control.isMultipleTouchEnabled = false
+        control.isUserInteractionEnabled = true
         control.accessibilityLabel = label
         control.accessibilityTraits = .button
         return control
@@ -200,13 +211,15 @@ final class RacingTouchControl: UIControl {
     }
 
     override func continueTracking(_ touch: UITouch, with event: UIEvent?) -> Bool {
-        // Do not drop throttle when a finger drifts over the edge by a few points.
-        let padded = bounds.insetBy(dx: -28, dy: -28)
-        setDown(padded.contains(touch.location(in: self)))
+        // Maintain control ownership until the same finger is lifted/cancelled.
+        // A drag must never unexpectedly release BRAKE, GAS or steering.
         return true
     }
 
     override func endTracking(_ touch: UITouch?, with event: UIEvent?) { release() }
+    override var isEnabled: Bool {
+        didSet { if !isEnabled { release() } }
+    }
     override func cancelTracking(with event: UIEvent?) { release() }
     override func willMove(toWindow newWindow: UIWindow?) {
         if newWindow == nil { release() }
