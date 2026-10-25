@@ -89,19 +89,22 @@ enum VehicleArt {
             for side: Float in [-1,1] {
                 let pivot = SCNNode()
                 pivot.position = SCNVector3(side * 1.14, 0.49, z)
+                let rolling = SCNNode()
+                rolling.name = "roll"
+                pivot.addChildNode(rolling)
                 let tire = SCNNode(geometry: SCNCylinder(radius: 0.49, height: 0.33))
                 tire.name = "tire"
                 tire.eulerAngles.z = .pi / 2
                 tire.geometry?.firstMaterial = black
-                pivot.addChildNode(tire)
+                rolling.addChildNode(tire)
 
                 let hub = SCNNode(geometry: SCNCylinder(radius: 0.30, height: 0.35))
                 hub.eulerAngles.z = .pi / 2
                 hub.geometry?.firstMaterial = steel
-                pivot.addChildNode(hub)
+                rolling.addChildNode(hub)
                 for spoke in 0..<6 {
                     let spokeNode = box(0.07, 0.41, 0.045, at: side * 0.188, 0, 0,
-                                        material: black, bevel: 0.012, parent: pivot)
+                                        material: black, bevel: 0.012, parent: rolling)
                     spokeNode.eulerAngles.x = Float(spoke) * .pi / 3
                 }
                 car.addChildNode(pivot)

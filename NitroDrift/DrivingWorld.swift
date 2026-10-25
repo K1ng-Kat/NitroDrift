@@ -141,7 +141,7 @@ final class DrivingWorld {
 
         for (index, wheel) in wheelNodes.enumerated() {
             // The wheels are physically oriented on the X axis.
-            wheel.childNode(withName: "tire", recursively: false)?.eulerAngles.z += Float(velocity * dt / 0.50)
+            wheel.childNode(withName: "roll", recursively: false)?.eulerAngles.x += Float(velocity * dt / 0.49)
             if index < 2 { wheel.eulerAngles.y = Float(frame.steering * 0.90) }
         }
 
