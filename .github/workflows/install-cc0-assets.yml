@@ -1,0 +1,29 @@
+name: Install CC0 Road Textures
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/install_pbr_assets.py'
+      - '.github/workflows/install-cc0-assets.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download CC0 textures via official Poly Haven API
+        run: python3 scripts/install_pbr_assets.py --strict
+      - name: Commit textures into project
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add NitroDrift/Assets.scnassets/Surfaces/
+          if ! git diff --cached --quiet; then
+            git commit -m 'Bundle CC0 Poly Haven asphalt PBR maps'
+            git push origin HEAD:main
+          fi
