@@ -335,7 +335,7 @@ final class DrivingWorld {
 
         let ambient = SCNLight()
         ambient.type = .ambient
-        ambient.intensity = 650
+        ambient.intensity = 480
         ambient.color = UIColor(red: 0.53, green: 0.65, blue: 1, alpha: 1)
         let ambientNode = SCNNode()
         ambientNode.light = ambient
@@ -343,9 +343,9 @@ final class DrivingWorld {
 
         let moon = SCNLight()
         moon.type = .directional
-        moon.intensity = 1200
+        moon.intensity = 1070
         directionalLight = moon
-        moon.color = UIColor(red: 0.6, green: 0.74, blue: 1, alpha: 1)
+        moon.color = UIColor(red: 0.70, green: 0.79, blue: 0.98, alpha: 1)
         let moonNode = SCNNode()
         moonNode.light = moon
         moonNode.eulerAngles = SCNVector3(-0.95, -0.5, -0.3)
@@ -363,7 +363,7 @@ final class DrivingWorld {
         let asphaltNS = CityVisuals.roadMaterial()
         let asphaltEW = CityVisuals.roadMaterial(horizontal: true)
         asphaltMaterials = [asphaltNS, asphaltEW]
-        let roadLines = glowMaterial(UIColor(red: 1, green: 0.79, blue: 0.30, alpha: 1), intensity: 0.30)
+        let roadLines = material(UIColor(red: 0.72, green: 0.66, blue: 0.45, alpha: 1), roughness: 0.64)
 
         for coordinate in stride(from: -450, through: 450, by: 150) {
             addBox(width: 24, height: 0.08, length: 1040,
@@ -424,39 +424,77 @@ final class DrivingWorld {
             return Int((seed >> 33) % UInt64(max(1, maximum)))
         }
 
+        let concreteTrim = material(UIColor(red: 0.12, green: 0.14, blue: 0.16, alpha: 1), roughness: 0.48)
+        let entryGlass = material(UIColor(red: 0.045, green: 0.10, blue: 0.15, alpha: 1), roughness: 0.10)
+        entryGlass.metalness.contents = 0.22
+        let warmLight = glowMaterial(UIColor(red: 1.0, green: 0.74, blue: 0.43, alpha: 1), intensity: 0.85)
+
         for xCell in [-375.0, -225, -75, 75, 225, 375] {
             for zCell in [-375.0, -225, -75, 75, 225, 375] {
                 for offsetX in [-26.0, 26.0] {
                     for offsetZ in [-26.0, 26.0] {
                         let x = xCell + offsetX
                         let z = zCell + offsetZ
-                        let width = Double(32 + random(11))
+                        let width = Double(30 + random(12))
                         let depth = Double(29 + random(12))
-                        let height = Double(20 + random(65))
-                        let gray = CGFloat(0.055 + Double(random(9)) * 0.01)
-                        let facade = material(UIColor(red: gray * 0.82, green: gray, blue: gray * 1.5, alpha: 1), roughness: 0.66)
-                        addBox(width: width, height: height, length: depth,
-                               at: SCNVector3(Float(x), Float(height / 2), Float(z)), material: facade)
+                        let height = Double(22 + random(66))
+                        let style = random(6)
+                        let building = CityArchitecture.building(
+                            width: CGFloat(width), height: CGFloat(height),
+                            depth: CGFloat(depth), index: style)
+                        building.position = SCNVector3(Float(x), Float(height / 2), Float(z))
+                        scene.rootNode.addChildNode(building)
 
-                        let accent = random(2) == 0
-                            ? UIColor(red: 0.06, green: 0.66, blue: 1, alpha: 1)
-                            : UIColor(red: 0.95, green: 0.24, blue: 0.60, alpha: 1)
-                        let strip = glowMaterial(accent, intensity: 1.6)
-                        for edgeX in [-width / 2 + 0.65, width / 2 - 0.65] {
-                            addBox(width: 0.24, height: height - 1.0, length: 0.25,
-                                   at: SCNVector3(Float(x + edgeX), Float(height / 2), Float(z + depth / 2 + 0.03)), material: strip)
+                        // Ground-floor glass frontage, with believable
+                        // night-lit interiors instead of vertical neon tubes.
+                        let entranceSide = (x > 0 ? -1.0 : 1.0)
+                        addBox(width: width - 3.2, height: 4.0, length: 0.13,
+                               at: SCNVector3(Float(x), 2.2,
+                                              Float(z + entranceSide * (depth / 2 + 0.07))),
+                               material: entryGlass)
+                        addBox(width: width - 3.8, height: 0.17, length: 0.14,
+                               at: SCNVector3(Float(x), 4.23,
+                                              Float(z + entranceSide * (depth / 2 + 0.15))),
+                               material: warmLight)
+                        // Perimeter parapet and occasional building services.
+                        addBox(width: width - 0.4, height: 0.46, length: depth - 0.4,
+                               at: SCNVector3(Float(x), Float(height + 0.22), Float(z)),
+                               material: concreteTrim)
+                        if random(3) == 0 {
+                            addBox(width: 5.4, height: 2.0, length: 5.9,
+                                   at: SCNVector3(Float(x + 3), Float(height + 1.3),
+                                                  Float(z - 3.8)), material: concreteTrim)
                         }
-                        let windows = glowMaterial(UIColor(red: 0.65, green: 0.80, blue: 1, alpha: 1), intensity: 0.38)
-                        for floor in stride(from: 4.0, to: height - 1.0, by: 8.5) {
-                            for column in [-0.27, 0.0, 0.27] {
-                                if random(4) == 0 { continue }
-                                addBox(width: 2.7, height: 1.45, length: 0.12,
-                                       at: SCNVector3(Float(x + width * column), Float(floor), Float(z + depth / 2 + 0.12)),
-                                       material: windows)
-                            }
+                        // Narrow architectural fins emphasize realistic scale
+                        // without painting every edge neon cyan and magenta.
+                        if random(4) == 0 {
+                            let accent = CityArchitecture.presets[style].accent
+                            addBox(width: width * 0.25, height: 0.11, length: 0.18,
+                                   at: SCNVector3(Float(x), Float(height * 0.57),
+                                                  Float(z + entranceSide * (depth / 2 + 0.10))),
+                                   material: accent)
                         }
                     }
                 }
+            }
+        }
+
+        // Foreground foliage and planters add depth, scale and silhouettes.
+        let trunks = material(UIColor(red: 0.23, green: 0.17, blue: 0.13, alpha: 1), roughness: 0.95)
+        let leafMat = material(UIColor(red: 0.10, green: 0.17, blue: 0.12, alpha: 1), roughness: 0.93)
+        for road in [-300.0, -150, 0, 150, 300] {
+            for segment in [-375.0, -225, -75, 75, 225, 375] {
+                if random(3) == 0 { continue }
+                let trunk = SCNNode(geometry: SCNCylinder(radius: 0.22, height: 5.1))
+                trunk.geometry?.firstMaterial = trunks
+                trunk.position = SCNVector3(Float(road + 15.6), 2.6, Float(segment))
+                scene.rootNode.addChildNode(trunk)
+                let canopy = SCNNode(geometry: SCNSphere(radius: CGFloat(2.1 + Double(random(6)) * 0.15)))
+                canopy.geometry?.firstMaterial = leafMat
+                canopy.scale = SCNVector3(0.93, 1.35, 0.93)
+                canopy.position = SCNVector3(Float(road + 15.6), 6.5, Float(segment))
+                canopy.castsShadow = true
+                scene.rootNode.addChildNode(canopy)
             }
         }
 
