@@ -28,6 +28,8 @@ final class DrivingWorld {
     private var lastPhase: GamePhase = .menu
     private var displayedPaint: CarPaint = .electricBlue
     private var displayedStyle: CarStyle = .street
+    private var currentQuality: GraphicsQuality?
+    private var directionalLight: SCNLight?
 
     init() {
         createEnvironment()
@@ -41,6 +43,8 @@ final class DrivingWorld {
     func advance(_ dt: TimeInterval, session: GameSession) {
         let delta = min(1.0 / 20.0, max(0.0, dt))
         elapsed += delta
+
+        if currentQuality != session.graphicsQuality { configureGraphics(session.graphicsQuality) }
 
         if lastResetToken != session.resetToken {
             lastResetToken = session.resetToken
@@ -79,6 +83,24 @@ final class DrivingWorld {
             rivalGhost.isHidden = true
         }
         updateCamera(delta, session: session)
+    }
+
+    private func configureGraphics(_ quality: GraphicsQuality) {
+        currentQuality = quality
+        let cinematic = quality == .cinematic
+        camera.camera?.wantsHDR = cinematic
+        camera.camera?.bloomIntensity = cinematic ? 0.24 : 0
+        camera.camera?.vignettingIntensity = cinematic ? 0.26 : 0
+        camera.camera?.screenSpaceAmbientOcclusionIntensity = cinematic ? 0.32 : 0
+        directionalLight?.castsShadow = cinematic
+        directionalLight?.shadowSampleCount = cinematic ? 4 : 1
+        directionalLight?.shadowMapSize = cinematic
+            ? CGSize(width: 1024, height: 1024)
+            : CGSize(width: 512, height: 512)
+        directionalLight?.shadowRadius = cinematic ? 2.5 : 0.5
+        directionalLight?.shadowColor = UIColor.black.withAlphaComponent(0.56)
+        directionalLight?.orthographicScale = 120
+        directionalLight?.zFar = 260
     }
 
     private func resetCar() {
@@ -248,7 +270,10 @@ final class DrivingWorld {
     }
 
     private func createEnvironment() {
-        scene.background.contents = CityVisuals.sky()
+        let skyTexture = CityVisuals.sky()
+        scene.background.contents = skyTexture
+        scene.lightingEnvironment.contents = skyTexture
+        scene.lightingEnvironment.intensity = 0.9
         scene.fogColor = UIColor(red: 0.02, green: 0.03, blue: 0.065, alpha: 1)
         scene.fogStartDistance = 150
         scene.fogEndDistance = 440
@@ -264,6 +289,7 @@ final class DrivingWorld {
         let moon = SCNLight()
         moon.type = .directional
         moon.intensity = 1200
+        directionalLight = moon
         moon.color = UIColor(red: 0.6, green: 0.74, blue: 1, alpha: 1)
         let moonNode = SCNNode()
         moonNode.light = moon
@@ -452,6 +478,15 @@ final class DrivingWorld {
     private func createCamera() {
         camera.camera = SCNCamera()
         camera.camera?.fieldOfView = 70
+        camera.camera?.wantsHDR = true
+        camera.camera?.exposureOffset = -0.65
+        camera.camera?.wantsExposureAdaptation = false
+        camera.camera?.bloomIntensity = 0.24
+        camera.camera?.bloomThreshold = 1.15
+        camera.camera?.bloomBlurRadius = 8
+        camera.camera?.vignettingIntensity = 0.26
+        camera.camera?.screenSpaceAmbientOcclusionIntensity = 0.32
+        camera.camera?.screenSpaceAmbientOcclusionRadius = 1.9
         camera.camera?.zNear = 0.08
         camera.camera?.zFar = 500
         camera.position = SCNVector3(3.5, 4, 47)

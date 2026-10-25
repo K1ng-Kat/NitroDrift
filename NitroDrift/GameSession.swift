@@ -2,6 +2,12 @@ import SwiftUI
 import UIKit
 
 enum GamePhase { case menu, driving, garage, settings, events, leaderboard }
+
+enum GraphicsQuality: String, CaseIterable, Identifiable {
+    case cinematic, balanced
+    var id: String { rawValue }
+    var label: String { self == .cinematic ? "Cinematic (HDR + shadows)" : "Balanced (faster)" }
+}
 enum DriveMode: String, CaseIterable {
     case freeRide = "Free Ride"
     case sprint = "Sprint"
@@ -73,6 +79,7 @@ final class GameSession: ObservableObject {
     @Published var mode: DriveMode = .freeRide
     @Published var speedKPH = 0
     @Published var gear = 1
+    @Published var graphicsQuality: GraphicsQuality
     @Published var engineRPM = 900
     @Published var lateralG = 0.0
     @Published var tireGrip = 0.0
@@ -123,6 +130,7 @@ final class GameSession: ObservableObject {
 
     init() {
         let s = UserDefaults.standard
+        graphicsQuality = GraphicsQuality(rawValue: s.string(forKey: "graphicsQuality") ?? "") ?? (ProcessInfo.processInfo.physicalMemory >= 4_000_000_000 ? .cinematic : .balanced)
         cash = s.object(forKey: "cash") as? Int ?? 1200
         engineLevel = s.integer(forKey: "engineLevel")
         handlingLevel = s.integer(forKey: "handlingLevel")
@@ -311,6 +319,7 @@ final class GameSession: ObservableObject {
     func setSound(_ value: Bool) { soundEnabled = value; store.set(value, forKey: "soundEnabled") }
     func setMusic(_ value: Bool) { musicEnabled = value; store.set(value, forKey: "musicEnabled") }
     func setAssist(_ value: Bool) { handlingAssist = value; store.set(value, forKey: "handlingAssist") }
+    func setQuality(_ value: GraphicsQuality) { graphicsQuality = value; store.set(value.rawValue, forKey: "graphicsQuality") }
 
     func feedback(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {
         guard hapticsEnabled else { return }

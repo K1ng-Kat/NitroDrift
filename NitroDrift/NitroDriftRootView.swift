@@ -248,6 +248,15 @@ struct NitroDriftRootView: View {
                                                                         set: { session.setMusic($0) })).tint(NitroTheme.cyan)
                     Toggle("Handling assist", isOn: Binding(get: { session.handlingAssist },
                                                                  set: { session.setAssist($0) })).tint(NitroTheme.cyan)
+                    Picker("Graphics quality", selection: Binding(
+                        get: { session.graphicsQuality },
+                        set: { session.setQuality($0) }
+                    )) {
+                        ForEach(GraphicsQuality.allCases) { mode in
+                            Text(mode.label).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
                     Text("CAMERA")
                         .font(.system(size: 11, weight: .black))
                         .tracking(2)
@@ -258,7 +267,7 @@ struct NitroDriftRootView: View {
                     Text("Progress is saved automatically on this device.")
                         .font(.system(size: 12))
                         .foregroundStyle(.white.opacity(0.65))
-                    Text("NitroDrift Alpha 0.3 • iOS 17+")
+                    Text("NitroDrift Alpha 0.4 • iOS 17+")
                         .font(.system(size: 10, weight: .medium, design: .monospaced))
                         .foregroundStyle(.white.opacity(0.47))
                 }
