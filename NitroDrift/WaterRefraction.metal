@@ -1,6 +1,6 @@
 #include <metal_stdlib>
-#include <SceneKit/scn_metal>
 using namespace metal;
+#include <SceneKit/scn_metal>
 
 // Rendering supplied by SceneKit's DRAW_QUAD path.
 struct NDWaterQuadIn {
