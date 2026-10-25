@@ -33,9 +33,7 @@ enum VehicleArt {
 
         // Chassis and coupe body; forward is local negative Z.
         box(2.10, 0.15, 4.75, at: 0, 0.49, 0, material: black, bevel: 0.10)
-        box(2.18, 0.53, 4.44, at: 0, 0.82, -0.02, material: paint, bevel: 0.22)
-        box(1.98, 0.17, 1.66, at: 0, 1.13, -1.31, material: paint, bevel: 0.08)
-        box(2.12, 0.19, 1.05, at: 0, 1.11, 1.62, material: paint, bevel: 0.07)
+        car.addChildNode(SculptedCarShell.make(paint: paint))
         box(1.91, 0.11, 2.07, at: 0, 1.73, 0.08, material: carbon, bevel: 0.07)
 
         // Side and windshield areas: genuinely angled polygons instead of a
