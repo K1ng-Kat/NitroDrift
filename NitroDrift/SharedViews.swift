@@ -112,6 +112,10 @@ struct HoldDriveButton: UIViewRepresentable {
         view.configure(title: label, symbol: symbol, tint: UIColor(color))
     }
 
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: RacingTouchControl, context: Context) -> CGSize? {
+        CGSize(width: width, height: height)
+    }
+
     static func dismantleUIView(_ view: RacingTouchControl, coordinator: Coordinator) {
         view.release()
         view.onChange = nil
