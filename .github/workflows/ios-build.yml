@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   simulator-build:
@@ -28,6 +29,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO build
 
       - name: Launch Ultra Rain in iPhone simulator
+        if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[visual]')
         shell: bash
         run: |
           set -euo pipefail
@@ -52,7 +54,7 @@ jobs:
           sleep 10
           xcrun simctl io "$DEVICE" screenshot "$RUNNER_TEMP/nitro-ultra-rain.png"
       - name: Save rendered screenshot
-        if: always()
+        if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[visual]')
         uses: actions/upload-artifact@v4
         with:
           name: nitro-ultra-rain-screenshot
