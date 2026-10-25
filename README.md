@@ -2,6 +2,56 @@
 
 Native **3D street-racing game prototype** for iPhone and iPad, made with SwiftUI + SceneKit + GameKit + AVFoundation. iOS 17+.
 
+## Alpha 0.8 — stable braking, easy mobile controls and brighter graphics
+
+This update directly addresses two issues reported during live gameplay:
+holding BRAKE spun the car, and touch controls were awkward/unreliable.
+
+### Braking and physics
+- **BRAKE is now independent from DRIFT**: front-biased ABS-inspired service
+  braking leaves lateral tire grip available for steering. The handbrake
+  intentionally reduces rear grip, but the footbrake does not.
+- Unrequested yaw is damped when braking with neutral steering, physical
+  yaw response is bounded, and lateral drift is attenuated near a stop.
+- Dedicated physics regression tests now simulate straight braking at
+  ~94 km/h, brake + steering release, both wet and dry traction, and
+  confirm no residual uncontrolled rotation. These passed in CI.
+
+### Asphalt-inspired Easy Drive controls
+- **Easy Drive is ON by default**, stored in Settings. The car automatically
+  accelerates unless you hold BRAKE or DRIFT. You no longer need to hold
+  GAS at the same time as turning.
+- Two generous LEFT and RIGHT thumb zones and dedicated BRAKE, DRIFT, and
+  NITRO controls; turning Easy Drive off reveals a manual GAS button.
+- Native UIKit hold controls retain their press state during small finger
+  drags and release on touch lift, cancellation, view removal or disable.
+- Touch controls have explicit stable frames and don't recreate images
+  on every speedometer update. Other UI buttons have pressed feedback,
+  larger hit targets, and accessible online menus.
+- Compact minimap has been restored without stealing input events.
+
+### Visual improvements
+- **Golden Hour is the new default lighting.** Settings now offers Golden
+  Hour, Daylight and Night. Every preset updates sun intensity/color,
+  ambient light, environment probe, haze and façade emissive windows.
+- Procedural multi-layer cloud backgrounds replace the solid midnight
+  gradient when driving by day or at sunset. The skyline, asphalt and
+  car paint are much easier to see.
+- Lower, closer chase-camera composition with speed-adaptive field of view.
+- A soft contact shadow anchors the player car to the asphalt.
+- Menu no longer blacks out most of the scene; panels and primary buttons
+  have more polished layered gradients and softer edges.
+- Retains prior real CC0 PBR asphalt textures, three CC0 USDZ sports car
+  files, and photographed Shanghai Bund lighting environment.
+
+**Limits:** These fixes are a more usable and readable SceneKit mobile racer,
+not a finished AAA photorealistic game. Automatic acceleration is distinct
+from Asphalt's proprietary TouchDrive route-selection system; steering
+remains fully player-controlled. Physics tests and simulator compilation
+do not prove real-device touch usability or performance. Test on a real
+iPhone in both Easy Drive and Manual modes and report any remaining
+broken/overlapping controls.
+
 ## Alpha 0.7 — visual design and car orientation overhaul
 
 This release responds to real gameplay feedback that the world looked ugly and the
