@@ -75,6 +75,33 @@ enum CityVisuals {
         return mat
     }
 
+    private static let shadowImage: UIImage = {
+        let size = CGSize(width: 256, height: 512)
+        let renderer = UIGraphicsImageRenderer(size: size)
+        return renderer.image { render in
+            let cg = render.cgContext
+            cg.clear(CGRect(origin: .zero, size: size))
+            let colors = [
+                UIColor.black.withAlphaComponent(0.54).cgColor,
+                UIColor.black.withAlphaComponent(0.21).cgColor,
+                UIColor.black.withAlphaComponent(0).cgColor
+            ] as CFArray
+            if let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                                         colors: colors, locations: [0, 0.53, 1]) {
+                cg.saveGState()
+                cg.translateBy(x: size.width * 0.5, y: size.height * 0.5)
+                cg.scaleBy(x: size.width * 0.44, y: size.height * 0.46)
+                cg.drawRadialGradient(gradient,
+                                      startCenter: .zero, startRadius: 0,
+                                      endCenter: .zero, endRadius: 1,
+                                      options: [])
+                cg.restoreGState()
+            }
+        }
+    }()
+
+    static func contactShadow() -> UIImage { shadowImage }
+
     // Cached PBR normal maps. Small periodic sine derivatives produce seamless
     // tiled road microdetail without shipping copyrighted texture files.
     private static let cachedRoadNormals = makeNormalTexture(wet: false)
