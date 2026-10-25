@@ -3,6 +3,13 @@ import UIKit
 
 enum GamePhase { case menu, driving, garage, settings, events, leaderboard }
 
+enum StreetTimeOfDay: String, CaseIterable, Identifiable {
+    case sunset = "Golden Hour"
+    case day = "Daylight"
+    case night = "Night"
+    var id: String { rawValue }
+}
+
 enum StreetWeatherMode: String, CaseIterable, Identifiable {
     case dry = "Dry"
     case rain = "Rain"
@@ -99,6 +106,7 @@ final class GameSession: ObservableObject {
     @Published var mode: DriveMode = .freeRide
     @Published var speedKPH = 0
     @Published var gear = 1
+    @Published var timeOfDay: StreetTimeOfDay
     @Published var weather: StreetWeatherMode
     @Published var graphicsQuality: GraphicsQuality
     @Published var screenRefractionEnabled: Bool
@@ -153,6 +161,7 @@ final class GameSession: ObservableObject {
 
     init() {
         let s = UserDefaults.standard
+        timeOfDay = StreetTimeOfDay(rawValue: s.string(forKey: "streetTimeOfDay") ?? "") ?? .sunset
         weather = StreetWeatherMode(rawValue: s.string(forKey: "streetWeather") ?? "") ?? .dry
         graphicsQuality = GraphicsQuality(rawValue: s.string(forKey: "graphicsQuality") ?? "") ?? (ProcessInfo.processInfo.physicalMemory >= 4_000_000_000 ? .cinematic : .balanced)
         screenRefractionEnabled = s.object(forKey: "screenRefractionEnabled") as? Bool ?? true
@@ -349,6 +358,7 @@ final class GameSession: ObservableObject {
     func setQuality(_ value: GraphicsQuality) { graphicsQuality = value; store.set(value.rawValue, forKey: "graphicsQuality") }
     func setRefraction(_ enabled: Bool) { screenRefractionEnabled = enabled; store.set(enabled, forKey: "screenRefractionEnabled") }
     func setWeather(_ value: StreetWeatherMode) { weather = value; store.set(value.rawValue, forKey: "streetWeather") }
+    func setTimeOfDay(_ value: StreetTimeOfDay) { timeOfDay = value; store.set(value.rawValue, forKey: "streetTimeOfDay") }
 
     func feedback(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {
         guard hapticsEnabled else { return }
