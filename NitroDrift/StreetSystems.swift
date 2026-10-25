@@ -283,37 +283,61 @@ final class StreetSystems {
 
     private func makeVehicle(color: UIColor, police: Bool = false) -> SCNNode {
         let root = SCNNode()
-        let body = SCNBox(width: 2.2, height: 0.65, length: 4.3, chamferRadius: 0.25)
-        body.firstMaterial = SCNMaterial()
-        body.firstMaterial?.diffuse.contents = color
-        let bodyNode = SCNNode(geometry: body)
-        bodyNode.position.y = 0.9
-        root.addChildNode(bodyNode)
+        let paint = VehicleArt.mat(color, metal: 0.57, rough: 0.23)
+        let lower = SculptedCarShell.make(paint: paint)
+        lower.scale = SCNVector3(0.96, 0.90, 0.96)
+        root.addChildNode(lower)
 
-        let glass = SCNBox(width: 1.65, height: 0.60, length: 1.9, chamferRadius: 0.18)
-        glass.firstMaterial = SCNMaterial()
-        glass.firstMaterial?.diffuse.contents = UIColor.darkGray
-        let cabin = SCNNode(geometry: glass)
-        cabin.position = SCNVector3(0, 1.48, 0)
+        let tinted = VehicleArt.mat(UIColor(red: 0.045, green: 0.11, blue: 0.16, alpha: 1),
+                                    metal: 0.25, rough: 0.08)
+        let cabin = SCNNode(geometry: SCNBox(width: 1.67, height: 0.43,
+                                              length: 1.79, chamferRadius: 0.19))
+        cabin.geometry?.firstMaterial = tinted
+        cabin.position.y = 1.37
         root.addChildNode(cabin)
 
-        for x in [-0.78, 0.78] {
-            for z in [-2.14, 2.14] {
-                let light = SCNNode(geometry: SCNBox(width: 0.43, height: 0.16, length: 0.13, chamferRadius: 0))
-                light.position = SCNVector3(Float(x), 0.98, Float(z))
-                light.geometry?.firstMaterial = glowing(z < 0 ? .white : .red)
-                root.addChildNode(light)
+        let rubber = VehicleArt.mat(UIColor(red: 0.017, green: 0.021, blue: 0.026, alpha: 1),
+                                    metal: 0.08, rough: 0.88)
+        let rim = VehicleArt.mat(UIColor(red: 0.31, green: 0.34, blue: 0.38, alpha: 1),
+                                 metal: 0.82, rough: 0.26)
+        for x: Float in [-1.01, 1.01] {
+            for z: Float in [-1.44, 1.44] {
+                let wheel = SCNNode(geometry: SCNCylinder(radius: 0.42, height: 0.29))
+                wheel.geometry?.firstMaterial = rubber
+                wheel.eulerAngles.z = .pi / 2
+                wheel.position = SCNVector3(x, 0.42, z)
+                root.addChildNode(wheel)
+
+                let wheelCenter = SCNNode(geometry: SCNCylinder(radius: 0.21, height: 0.31))
+                wheelCenter.geometry?.firstMaterial = rim
+                wheelCenter.eulerAngles.z = .pi / 2
+                wheelCenter.position = SCNVector3(x, 0.42, z)
+                root.addChildNode(wheelCenter)
+            }
+        }
+
+        let white = glowing(UIColor(red: 0.95, green: 0.96, blue: 0.85, alpha: 1))
+        let tail = glowing(UIColor(red: 0.95, green: 0.07, blue: 0.09, alpha: 1))
+        for x: Float in [-0.70, 0.70] {
+            for z: Float in [-2.17, 2.17] {
+                let lamp = SCNNode(geometry: SCNBox(width: 0.44, height: 0.10,
+                                                      length: 0.05, chamferRadius: 0.02))
+                lamp.geometry?.firstMaterial = z < 0 ? white : tail
+                lamp.position = SCNVector3(x, 0.86, z)
+                root.addChildNode(lamp)
             }
         }
         if police {
-            for (x, lightColor) in [(-0.32, UIColor.red), (0.32, UIColor.blue)] {
-                let beacon = SCNNode(geometry: SCNBox(width: 0.52, height: 0.22, length: 0.42, chamferRadius: 0))
-                beacon.position = SCNVector3(Float(x), 1.91, 0)
-                beacon.geometry?.firstMaterial = glowing(lightColor)
+            for x: Float in [-0.29, 0.29] {
+                let beacon = SCNNode(geometry: SCNBox(width: 0.50, height: 0.18,
+                                                        length: 0.35, chamferRadius: 0.06))
+                beacon.geometry?.firstMaterial = glowing(x < 0 ? .red : .blue)
+                beacon.position = SCNVector3(x, 1.72, 0)
                 root.addChildNode(beacon)
             }
         }
         scene.rootNode.addChildNode(root)
         return root
     }
+
 }
