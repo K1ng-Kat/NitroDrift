@@ -116,7 +116,7 @@ for path in "${metadata_paths[@]}"; do
          [[ -f "$PROJECT/scripts/merge_xcode_settings.py" ]] &&
          python3 "$PROJECT/scripts/merge_xcode_settings.py" \
            "$backup_dir/base/$path" "$backup_dir/local/$path" "$path" \
-           "$backup_dir/semantic.pbxproj"; then
+           "$backup_dir/semantic.pbxproj" "$backup_dir/unrecovered-edits.txt"; then
       cp "$backup_dir/semantic.pbxproj" "$path"
       printf '✅ Preserved personal signing settings with the updated project.\n'
     else
@@ -137,12 +137,22 @@ if (( had_conflict != 0 )); then
   exit 1
 fi
 if [[ -n "$backup_dir" ]]; then
-  rm -rf -- "$backup_dir"
+  if [[ -f "$backup_dir/unrecovered-edits.txt" ]]; then
+    printf '⚠️ The original project has other edits beyond signing preferences.\n'
+    printf '⚠️ Those edits remain in your backup for review: %s\n' "$backup_dir"
+  else
+    rm -rf -- "$backup_dir"
+  fi
 fi
 
 printf '\n✅ NITRODRIFT GITHUB SYNC COMPLETE!\n'
 if (( ${#metadata_paths[@]} > 0 || ${#shared_paths[@]} > 0 )); then
-  printf '✅ GitHub main updated; local Xcode settings retained.\n'
+  if [[ -n "$backup_dir" && -f "$backup_dir/unrecovered-edits.txt" ]]; then
+    printf '✅ GitHub main updated; signing changes recovered.\n'
+    printf '⚠️ Other local Xcode project edits still require review of the backup.\n'
+  else
+    printf '✅ GitHub main updated; local Xcode settings retained.\n'
+  fi
   printf 'ℹ️ Your personal Xcode edits may still appear as local modifications.\n'
 else
   printf '✅ Local matches GitHub main.\n'
