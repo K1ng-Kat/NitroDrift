@@ -2,6 +2,51 @@
 
 Native **3D street-racing game prototype** for iPhone and iPad, made with SwiftUI + SceneKit + GameKit + AVFoundation. iOS 17+.
 
+## Alpha 0.6 — real assets + experimental scene refraction
+
+This update moves beyond solely generated textures, although it is not a fully
+photorealistic game or a physically correct scene-traced renderer.
+
+**Bundled, legally reusable assets (already in the repository):**
+- Poly Haven **Aerial Asphalt 01** (CC0): the real 1K diffuse, normal and
+  roughness maps are bundled under Assets.scnassets/Surfaces and automatically
+  loaded for both road directions at consistent roughly 8 m texture tiling.
+- Poly Haven **Shanghai Bund** nighttime environment (CC0): a photographed
+  1024 × 512 city lighting probe, derived from the 1K Radiance HDRI and
+  tone-mapped into an iPhone-friendly JPG. Glossy surfaces use it for image-based
+  lighting. The game continues using its own geometry and sky background.
+- The automated source installers live in scripts/install_pbr_assets.py and
+  scripts/install_night_hdri.py. GitHub Actions fetched and committed the assets.
+  The game runs offline; it doesn't download textures at launch.
+
+**Rendering engineering:**
+- SceneKit SCNTechnique renders normal scene color and separate water masks,
+  then a Metal compositor applies **Snell-law screen-space refraction** at
+  approximate index of refraction 1.333 with animated slope normals,
+  view-dependent Fresnel and subtle channel dispersion.
+- This mode enables only with Ultra graphics, Rain weather, and the setting
+  Screen-space water refraction (experimental) switched on. Turn off the toggle
+  if the device shows shader artifacts or poor FPS. Other settings retain
+  SceneKit surface shaders and local reflected-scene planar water.
+- A smooth lofted body shell and blended normals replace the boxiest sections
+  of the procedurally made player car. These remain original generated shapes,
+  **not** an externally authored supercar asset.
+- Fixed a real bug: rain traction is now applied to **every** physics
+  integration substep, so tire response actually changes in wet conditions.
+- CI now smoke-launches an iPhone simulator in Ultra/Rain and saves a
+  screenshot artifact in GitHub Actions, in addition to compiling Swift/Metal
+  and running drivetrain tests.
+
+**Not yet delivered:** hardware ray-traced scene intersections through water,
+multiple refraction bounces, caustics, a complete AAA vehicle and architecture
+asset pack, robust reflection occlusion, high-speed traffic AI, physically
+modeled suspension, and production performance certification. Current
+screen-space transmission samples only **visible pixels**, so it cannot recover
+occluded submerged geometry. SceneKit's SCNTechnique path is deprecated by
+Apple; a full physically accurate water engine would require a custom Metal
+renderer and much larger development effort. Do not advertise the project as
+AAA photorealism without real-device profiling and visual QA.
+
 ## Alpha 0.5 — wet-road / water rendering
 
 The rain mode now has physically motivated, GPU-animated water visuals rather than just flat blue transparent rectangles:
