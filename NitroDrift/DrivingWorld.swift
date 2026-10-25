@@ -183,7 +183,10 @@ final class DrivingWorld {
             }
             session.speedKPH = Int((velocity * 3.6).rounded())
             session.nitro = currentNitro
-            session.gear = max(1, min(6, Int(velocity * 3.6 / 40.0) + 1))
+            session.gear = frame.gear
+            session.engineRPM = Int(frame.rpm)
+            session.lateralG = frame.lateralG
+            session.tireGrip = frame.gripUsage
             hudElapsed = 0
         }
     }

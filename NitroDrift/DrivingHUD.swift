@@ -41,6 +41,12 @@ struct DrivingHUD: View {
                                 .foregroundStyle(.white.opacity(0.82))
                         }
                         .frame(width: compact ? 90 : 125)
+                        .overlay(alignment: .top) {
+                            Text("\(session.engineRPM) RPM")
+                                .font(.system(size: 8, weight: .bold, design: .monospaced))
+                                .foregroundStyle(.white.opacity(0.58))
+                                .offset(y: -12)
+                        }
                         .padding(.bottom, 3)
 
                         Spacer(minLength: 2)

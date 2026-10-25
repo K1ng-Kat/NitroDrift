@@ -73,6 +73,9 @@ final class GameSession: ObservableObject {
     @Published var mode: DriveMode = .freeRide
     @Published var speedKPH = 0
     @Published var gear = 1
+    @Published var engineRPM = 900
+    @Published var lateralG = 0.0
+    @Published var tireGrip = 0.0
     @Published var nitro = 100.0
     @Published var driftScore = 0
     @Published var cash: Int
@@ -146,6 +149,9 @@ final class GameSession: ObservableObject {
         raceElapsed = 0
         speedKPH = 0
         gear = 1
+        engineRPM = 900
+        lateralG = 0
+        tireGrip = 0
         nitro = 100
         driftScore = 0
         raceCheckpoint = 0

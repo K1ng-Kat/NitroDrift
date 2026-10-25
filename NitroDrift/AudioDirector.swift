@@ -15,13 +15,13 @@ final class AudioDirector {
 
     private init() {}
 
-    func update(speed: Int, boosting: Bool, running: Bool,
+    func update(speed: Int, rpm: Int, boosting: Bool, running: Bool,
                 soundEnabled: Bool, musicEnabled: Bool) {
         if !initialized { setup() }
         let shouldPlayEngine = running && soundEnabled
         if shouldPlayEngine {
             engine?.enableRate = true
-            engine?.rate = Float(min(2.0, 0.7 + Double(speed) / 280.0))
+            engine?.rate = Float(max(0.65, min(2.0, Double(rpm) / 3500.0)))
             engine?.volume = Float(min(0.35, 0.12 + Double(speed) / 1500.0))
             if engine?.isPlaying == false { engine?.play() }
         } else { engine?.pause() }
