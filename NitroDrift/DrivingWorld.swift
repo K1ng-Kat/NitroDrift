@@ -6,6 +6,7 @@ import SceneKit
 /// All art is generated in code, so the first build needs no external assets.
 final class DrivingWorld {
     let scene = SCNScene()
+    private lazy var streets = StreetSystems(scene: scene)
 
     private let car = SCNNode()
     private let camera = SCNNode()
@@ -24,11 +25,13 @@ final class DrivingWorld {
     private var lastResetToken = -1
     private var lastPhase: GamePhase = .menu
     private var displayedPaint: CarPaint = .electricBlue
+    private var displayedStyle: CarStyle = .street
 
     init() {
         createEnvironment()
         createCar()
         createCamera()
+        _ = streets
         resetCar()
     }
 
@@ -39,6 +42,7 @@ final class DrivingWorld {
         if lastResetToken != session.resetToken {
             lastResetToken = session.resetToken
             resetCar()
+            streets.reset(mode: session.mode, session: session)
         }
 
         if lastPhase != session.phase {
@@ -49,6 +53,12 @@ final class DrivingWorld {
         if displayedPaint != session.paint {
             displayedPaint = session.paint
             paintMaterial.diffuse.contents = session.paint.color
+        }
+
+        if displayedStyle != session.carStyle {
+            displayedStyle = session.carStyle
+            let tier = Float(session.carStyle.rawValue)
+            car.scale = SCNVector3(1 + tier * 0.07, 1 - tier * 0.025, 1 + tier * 0.08)
         }
 
         if session.phase == .driving && !session.isPaused {
@@ -75,9 +85,9 @@ final class DrivingWorld {
         let input = session.input
         let upgrade = Double(session.engineLevel)
         let grip = Double(session.handlingLevel)
-        let maxSpeed = 55.0 + upgrade * 5.0 // metres/second
+        let maxSpeed = 46.0 + upgrade * 5.0 + session.carStyle.speedBonus // metres/second
         let canNitro = input.nitro && input.gas && currentNitro > 0.3 && velocity > 3
-        let boostedTopSpeed = maxSpeed + (canNitro ? 16.0 : 0.0)
+        let boostedTopSpeed = maxSpeed + (canNitro ? (14.0 + Double(session.nitroLevel) * 3.0) : 0.0)
 
         if input.gas {
             velocity += (13.5 + upgrade * 2.5 + (canNitro ? 23.0 : 0.0)) * dt
@@ -86,24 +96,24 @@ final class DrivingWorld {
         }
 
         if input.brake {
-            velocity -= 31 * dt
+            velocity -= (26.0 + Double(session.brakeLevel) * 4.8) * dt
         }
 
         velocity = min(boostedTopSpeed, max(0, velocity))
         if canNitro {
-            currentNitro = max(0, currentNitro - dt * 26)
+            currentNitro = max(0, currentNitro - dt * max(13, 26 - Double(session.nitroLevel) * 2))
         } else {
             currentNitro = min(100, currentNitro + dt * 5.0)
         }
 
         let steering = Double((input.right ? 1 : 0) - (input.left ? 1 : 0))
         let speedFactor = min(1, velocity / 13.0)
-        let steeringPower = 1.05 + grip * 0.09
+        let steeringPower = (session.handlingAssist ? 1.02 : 1.28) + grip * 0.085
         heading += steering * steeringPower * speedFactor * dt
 
         // A controlled amount of lateral slide rewards high-speed cornering.
         let isDrifting = abs(steering) > 0.1 && velocity > 17
-        let slide = isDrifting ? steering * (0.10 - grip * 0.007) * velocity * dt : 0
+        let slide = isDrifting ? steering * max(0.035, (session.handlingAssist ? 0.095 : 0.18) - grip * 0.008) * velocity * dt : 0
         let forwardX = sin(heading)
         let forwardZ = -cos(heading)
         let nextX = positionX + forwardX * velocity * dt + cos(heading) * slide
@@ -113,12 +123,17 @@ final class DrivingWorld {
         // are solid; a future milestone will add real vehicle collision meshes.
         let distanceFromNSRoad = abs(nextX - (nextX / 150.0).rounded() * 150.0)
         let distanceFromEWRoad = abs(nextZ - (nextZ / 150.0).rounded() * 150.0)
-        let withinMap = abs(nextX) < 355 && abs(nextZ) < 355
+        let withinMap = abs(nextX) < 505 && abs(nextZ) < 505
         if withinMap && (distanceFromNSRoad < 10.5 || distanceFromEWRoad < 10.5) {
             positionX = nextX
             positionZ = nextZ
         } else {
             velocity *= 0.68
+        }
+
+        let crash = streets.advance(dt, x: positionX, z: positionZ, speed: velocity, session: session)
+        if crash > 0 {
+            velocity *= 1 - crash
         }
 
         car.position = SCNVector3(Float(positionX), 0, Float(positionZ))
@@ -211,8 +226,8 @@ final class DrivingWorld {
     private func createEnvironment() {
         scene.background.contents = UIColor(red: 0.015, green: 0.024, blue: 0.055, alpha: 1)
         scene.fogColor = UIColor(red: 0.02, green: 0.03, blue: 0.065, alpha: 1)
-        scene.fogStartDistance = 105
-        scene.fogEndDistance = 390
+        scene.fogStartDistance = 150
+        scene.fogEndDistance = 440
 
         let ambient = SCNLight()
         ambient.type = .ambient
@@ -241,15 +256,15 @@ final class DrivingWorld {
         let asphalt = material(UIColor(red: 0.062, green: 0.075, blue: 0.10, alpha: 1), roughness: 0.82)
         let roadLines = glowMaterial(UIColor(red: 1, green: 0.79, blue: 0.30, alpha: 1), intensity: 0.30)
 
-        for coordinate in stride(from: -300, through: 300, by: 150) {
-            addBox(width: 24, height: 0.08, length: 740,
+        for coordinate in stride(from: -450, through: 450, by: 150) {
+            addBox(width: 24, height: 0.08, length: 1040,
                    at: SCNVector3(Float(coordinate), 0.025, 0), material: asphalt)
-            addBox(width: 740, height: 0.08, length: 24,
+            addBox(width: 1040, height: 0.08, length: 24,
                    at: SCNVector3(0, 0.03, Float(coordinate)), material: asphalt)
 
-            for marker in stride(from: -350, through: 350, by: 16) {
+            for marker in stride(from: -495, through: 495, by: 15) {
                 // Avoid drawing lines directly through road intersections.
-                if abs(marker % 150) < 17 || abs(marker % 150) > 133 { continue }
+                if abs(Double(marker) - (Double(marker) / 150).rounded() * 150) < 17 { continue }
                 addBox(width: 0.20, height: 0.012, length: 6.0,
                        at: SCNVector3(Float(coordinate), 0.077, Float(marker)), material: roadLines)
                 addBox(width: 6.0, height: 0.012, length: 0.20,
@@ -263,8 +278,8 @@ final class DrivingWorld {
             return Int((seed >> 33) % UInt64(max(1, maximum)))
         }
 
-        for xCell in [-225.0, -75, 75, 225] {
-            for zCell in [-225.0, -75, 75, 225] {
+        for xCell in [-375.0, -225, -75, 75, 225, 375] {
+            for zCell in [-375.0, -225, -75, 75, 225, 375] {
                 for offsetX in [-26.0, 26.0] {
                     for offsetZ in [-26.0, 26.0] {
                         let x = xCell + offsetX
@@ -299,8 +314,8 @@ final class DrivingWorld {
             }
         }
 
-        for x in [-300, -150, 0, 150, 300] {
-            for z in [-300, -150, 0, 150, 300] {
+        for x in [-450, -300, -150, 0, 150, 300, 450] {
+            for z in [-450, -300, -150, 0, 150, 300, 450] {
                 addStreetLight(x: Double(x) + 14.5, z: Double(z) + 14.5)
                 addStreetLight(x: Double(x) - 14.5, z: Double(z) - 14.5)
             }
