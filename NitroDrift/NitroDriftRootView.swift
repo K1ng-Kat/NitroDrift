@@ -84,7 +84,6 @@ struct NitroDriftRootView: View {
                     session.phase = .settings
                 }
             }
-                }
             }
             .scrollIndicators(.hidden)
             .frame(width: 298)
