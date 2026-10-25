@@ -55,12 +55,22 @@ def merge(base, local, incoming):
     return incoming
 
 def main():
-    if len(sys.argv) != 5:
-        raise SystemExit("Usage: merge_xcode_settings.py BASE LOCAL UPDATED OUTPUT")
+    if len(sys.argv) not in (5, 6):
+        raise SystemExit("Usage: merge_xcode_settings.py BASE LOCAL UPDATED OUTPUT [PARTIAL_MARKER]")
     paths = [pathlib.Path(p) for p in sys.argv[1:]]
     try:
         base, local, incoming = [p.read_text(encoding="utf-8") for p in paths[:3]]
-        paths[3].write_text(merge(base, local, incoming), encoding="utf-8")
+        result = merge(base, local, incoming)
+        paths[3].write_text(result, encoding="utf-8")
+        if len(paths) == 5:
+            def scrub(value):
+                return SETTING.sub(lambda m: m["indent"] + m["key"] + m["eq"] +
+                                   "<SIGNING>" + m["tail"], value)
+            if scrub(base) != scrub(local):
+                paths[4].write_text(
+                    "Non-signing project edits were not restored. Keep the original backup.\n",
+                    encoding="utf-8"
+                )
     except ValueError as error:
         print("Cannot safely merge project settings:", error, file=sys.stderr)
         raise SystemExit(1)
