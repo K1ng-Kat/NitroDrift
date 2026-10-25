@@ -168,6 +168,10 @@ struct DrivingHUD: View {
 
             Spacer(minLength: 2)
 
+            MiniMapView(session: session)
+                .frame(width: compact ? 58 : 78, height: compact ? 58 : 78)
+                .allowsHitTesting(false)
+
             if session.mode != .freeRide {
                 VStack(alignment: .trailing, spacing: 1) {
                     Text(String(format: "%.1f SEC", session.sprintTime))
