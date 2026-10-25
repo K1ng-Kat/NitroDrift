@@ -38,7 +38,6 @@ enum CityVisuals {
     }
 
     static func sky() -> UIImage {
-        let size = CGSize(width: 512, height: 512)
         return texture(size: 512) { context, size in
             let colors = [
                 UIColor(red: 0.006, green: 0.011, blue: 0.038, alpha: 1).cgColor,
@@ -68,6 +67,6 @@ enum CityVisuals {
         format.scale = 1
         format.opaque = true
         return UIGraphicsImageRenderer(size: CGSize(width: size, height: size), format: format)
-            .image { renderer in render(renderer.cgContext, renderer.format.bounds.size) }
+            .image { renderer in render(renderer.cgContext, CGSize(width: size, height: size)) }
     }
 }
