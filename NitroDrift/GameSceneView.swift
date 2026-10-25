@@ -37,6 +37,7 @@ struct GameSceneView: UIViewRepresentable {
     final class Coordinator: NSObject {
         let session: GameSession
         let world = DrivingWorld()
+        private let gamepad = RacingGamepad()
         private var displayLink: CADisplayLink?
         private var previousTimestamp: CFTimeInterval = 0
 
@@ -59,6 +60,7 @@ struct GameSceneView: UIViewRepresentable {
         @objc private func tick(_ display: CADisplayLink) {
             let dt = previousTimestamp > 0 ? display.timestamp - previousTimestamp : 1.0 / 60.0
             previousTimestamp = display.timestamp
+            gamepad.poll(session)
             world.advance(dt, session: session)
             AudioDirector.shared.update(speed: session.speedKPH, rpm: session.engineRPM, boosting: session.input.nitro,
                                         running: session.phase == .driving && !session.isPaused,

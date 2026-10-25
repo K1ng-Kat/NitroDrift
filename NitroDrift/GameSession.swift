@@ -63,7 +63,15 @@ enum CarStyle: Int, CaseIterable, Identifiable {
 
 struct DriverInput {
     var left = false, right = false, gas = false, brake = false, nitro = false
-    mutating func clear() { left = false; right = false; gas = false; brake = false; nitro = false }
+    var handbrake = false
+    var analogSteering = 0.0, analogThrottle = 0.0, analogBrake = 0.0
+    var gamepadHandbrake = false, gamepadNitro = false
+    mutating func clear() {
+        left = false; right = false; gas = false; brake = false
+        nitro = false; handbrake = false
+        analogSteering = 0; analogThrottle = 0; analogBrake = 0
+        gamepadHandbrake = false; gamepadNitro = false
+    }
 }
 
 struct RaceResult: Identifiable {

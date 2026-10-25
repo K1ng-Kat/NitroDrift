@@ -59,9 +59,11 @@ struct CarDynamics {
         let mass = 1390.0 + Double(carTier) * 95
         let inertia = mass * 1.85
         let cgHeight = 0.53
-        let throttle = input.gas ? 1.0 : 0.0
-        let brake = input.brake ? 1.0 : 0.0
-        let steeringInput = Double((input.right ? 1 : 0) - (input.left ? 1 : 0))
+        let throttle = clamp(max(input.gas ? 1.0 : 0.0, input.analogThrottle), 0, 1)
+        let brake = clamp(max(input.brake ? 1.0 : 0.0, input.analogBrake), 0, 1)
+        let steeringInput = clamp(Double((input.right ? 1 : 0) - (input.left ? 1 : 0))
+                                  + input.analogSteering, -1, 1)
+        let handbrake = input.handbrake || input.gamepadHandbrake
         let gears = [3.47, 2.17, 1.56, 1.16, 0.87, 0.70]
         let finalDrive = 3.34
         let gearboxEfficiency = 0.86
@@ -105,7 +107,7 @@ struct CarDynamics {
         let loadR = max(0.20 * mass * gravity, axleStaticRear + transfer)
         // RWD: powered rear axle, braking biased toward the front axle.
         let frontLong = -brakeForce * 0.62
-        let rearLong = wheelForce - brakeForce * 0.38
+        let rearLong = wheelForce - brakeForce * 0.38 - (handbrake ? mu * loadR * 0.55 : 0)
         let cappedFrontLong = clamp(frontLong, -mu * loadF, mu * loadF)
         let cappedRearLong = clamp(rearLong, -mu * loadR, mu * loadR)
         let longitudinalForce = cappedFrontLong + cappedRearLong - aeroDrag
@@ -129,7 +131,7 @@ struct CarDynamics {
         // Smoothly saturating slip curves avoid the unrealistic tire-force jump
         // of a hard sign change at the grip limit.
         let lateralBudgetF = sqrt(max(0, pow(mu * loadF, 2) - pow(cappedFrontLong, 2)))
-        let lateralBudgetR = sqrt(max(0, pow(mu * loadR, 2) - pow(cappedRearLong, 2)))
+        let lateralBudgetR = sqrt(max(0, pow(mu * loadR, 2) - pow(cappedRearLong, 2))) * (handbrake ? 0.23 : 1.0)
         let frontLateral = lateralBudgetF * tanh(corneringStiffnessF * slipFront / max(1, lateralBudgetF))
         let rearLateral = lateralBudgetR * tanh(corneringStiffnessR * slipRear / max(1, lateralBudgetR))
 

@@ -51,6 +51,10 @@ struct DrivingHUD: View {
 
                         Spacer(minLength: 2)
 
+                        HoldDriveButton(label: "E-BRAKE", symbol: "hand.raised.fill",
+                                        color: NitroTheme.orange,
+                                        width: compact ? 48 : 64, height: height - 6,
+                                        onPressed: { session.input.handbrake = $0 })
                         HoldDriveButton(label: "BRAKE", symbol: "minus",
                                         color: NitroTheme.orange,
                                         width: control, height: height,

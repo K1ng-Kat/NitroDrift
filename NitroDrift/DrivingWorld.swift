@@ -119,7 +119,7 @@ final class DrivingWorld {
 
     private func simulate(_ dt: Double, session: GameSession) {
         let input = session.input
-        let canNitro = input.nitro && input.gas && currentNitro > 0.4 && velocity > 2
+        let canNitro = (input.nitro || input.gamepadNitro) && (input.gas || input.analogThrottle > 0.15) && currentNitro > 0.4 && velocity > 2
         let meterDrain = max(12, 23 - Double(session.nitroLevel) * 1.8)
         currentNitro = min(100, max(0, currentNitro + (canNitro ? -meterDrain : 6.5) * dt))
 
