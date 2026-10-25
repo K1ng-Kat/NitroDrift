@@ -109,14 +109,16 @@ for path in "${metadata_paths[@]}"; do
   if [[ "$path" == 'NitroDrift.xcodeproj/project.pbxproj' ]] &&
      [[ -f "$path" ]] && ! cmp -s "$backup_dir/base/$path" "$path"; then
     if git merge-file -p --diff3 "$backup_dir/local/$path" \
-         "$backup_dir/base/$path" "$path" > "$backup_dir/merged.pbxproj"; then
+         "$backup_dir/base/$path" "$path" > "$backup_dir/merged.pbxproj" &&
+         plutil -lint "$backup_dir/merged.pbxproj" >/dev/null; then
       cp "$backup_dir/merged.pbxproj" "$path"
       printf '✅ Merged local Xcode project settings with GitHub changes.\n'
     elif command -v python3 >/dev/null 2>&1 &&
          [[ -f "$PROJECT/scripts/merge_xcode_settings.py" ]] &&
          python3 "$PROJECT/scripts/merge_xcode_settings.py" \
            "$backup_dir/base/$path" "$backup_dir/local/$path" "$path" \
-           "$backup_dir/semantic.pbxproj" "$backup_dir/unrecovered-edits.txt"; then
+           "$backup_dir/semantic.pbxproj" "$backup_dir/unrecovered-edits.txt" &&
+         plutil -lint "$backup_dir/semantic.pbxproj" >/dev/null; then
       cp "$backup_dir/semantic.pbxproj" "$path"
       printf '✅ Preserved personal signing settings with the updated project.\n'
     else
