@@ -38,7 +38,6 @@ struct NitroDriftRootView: View {
             }
             .frame(width: size.size.width, height: size.size.height)
             .foregroundStyle(.white)
-            .animation(.easeInOut(duration: 0.20), value: session.phase)
             .onAppear {
                 let active = session
                 online.onMatchReady = { [weak active] in active?.start(.online) }
