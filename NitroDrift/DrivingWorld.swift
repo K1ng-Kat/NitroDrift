@@ -232,8 +232,8 @@ final class DrivingWorld {
 
         // Narrow enough for readable corners, wider with speed for depth cues.
         let desiredFOV = session.phase == .driving ? 64.0 + min(15.0, velocity * 0.24) : 61.0
-        let oldFOV = camera.camera?.fieldOfView ?? 68.0
-        camera.camera?.fieldOfView = oldFOV + (desiredFOV - oldFOV) * min(1, dt * 3.4)
+        let oldFOV = Double(camera.camera?.fieldOfView ?? 68.0)
+        camera.camera?.fieldOfView = CGFloat(oldFOV + (desiredFOV - oldFOV) * min(1, dt * 3.4))
 
         let lerp = Float(min(1, dt * 5))
         camera.position = SCNVector3(
