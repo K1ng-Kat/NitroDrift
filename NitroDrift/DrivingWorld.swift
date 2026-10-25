@@ -53,15 +53,20 @@ final class DrivingWorld {
         let delta = min(1.0 / 20.0, max(0.0, dt))
         elapsed += delta
 
-        if currentQuality != session.graphicsQuality { configureGraphics(session.graphicsQuality) }
-        if displayedWeather != session.weather {
+        if currentQuality != session.graphicsQuality || displayedWeather != session.weather {
+            currentQuality = session.graphicsQuality
             displayedWeather = session.weather
+            configureGraphics(session.graphicsQuality)
             let wet = session.weather == .rain
-            weatherFX.setWet(wet)
-            asphaltMaterial?.roughness.contents = wet ? 0.24 : 0.77
-            asphaltMaterial?.metalness.contents = wet ? 0.28 : 0.08
-            scene.fogStartDistance = wet ? 90 : 150
-            scene.fogEndDistance = wet ? 270 : 440
+            weatherFX.configure(wet: wet, cinematic: session.graphicsQuality == .cinematic)
+            asphaltMaterial?.roughness.contents = wet ? 0.18 : 0.77
+            // Water and wet asphalt remain mostly nonmetallic; the reflected
+            // surroundings come from the road mirror and environment.
+            asphaltMaterial?.metalness.contents = wet ? 0.02 : 0.08
+            asphaltMaterial?.normal.contents = wet ? CityVisuals.rainNormalMap() : CityVisuals.roadNormalMap()
+            asphaltMaterial?.normal.intensity = wet ? 0.44 : 0.20
+            scene.fogStartDistance = wet ? 100 : 150
+            scene.fogEndDistance = wet ? 330 : 440
         }
         weatherFX.update(x: positionX, z: positionZ)
 
@@ -343,6 +348,8 @@ final class DrivingWorld {
         scene.rootNode.addChildNode(groundNode)
 
         let asphalt = CityVisuals.roadMaterial()
+        asphalt.normal.contents = CityVisuals.roadNormalMap()
+        asphalt.normal.intensity = 0.20
         asphaltMaterial = asphalt
         let roadLines = glowMaterial(UIColor(red: 1, green: 0.79, blue: 0.30, alpha: 1), intensity: 0.30)
 
