@@ -60,6 +60,10 @@ struct GameSceneView: UIViewRepresentable {
             let dt = previousTimestamp > 0 ? display.timestamp - previousTimestamp : 1.0 / 60.0
             previousTimestamp = display.timestamp
             world.advance(dt, session: session)
+            AudioDirector.shared.update(speed: session.speedKPH, boosting: session.input.nitro,
+                                        running: session.phase == .driving && !session.isPaused,
+                                        soundEnabled: session.soundEnabled,
+                                        musicEnabled: session.musicEnabled)
         }
 
         deinit {

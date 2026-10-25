@@ -13,6 +13,7 @@ final class DrivingWorld {
     private var paintMaterial = SCNMaterial()
     private var nitroFlames: [SCNNode] = []
     private var wheelNodes: [SCNNode] = []
+    private let rivalGhost = SCNNode()
 
     private var positionX = 0.0
     private var positionZ = 35.0
@@ -31,6 +32,7 @@ final class DrivingWorld {
         createEnvironment()
         createCar()
         createCamera()
+        makeGhost()
         _ = streets
         resetCar()
     }
@@ -67,6 +69,14 @@ final class DrivingWorld {
             nitroFlames.forEach { $0.isHidden = true }
         }
 
+        if session.mode == .online && session.phase == .driving && OnlineRacing.shared.connected,
+           let rival = OnlineRacing.shared.remoteState {
+            rivalGhost.isHidden = false
+            rivalGhost.position = SCNVector3(Float(rival.x), 0.05, Float(rival.z))
+            rivalGhost.eulerAngles.y = Float(-rival.heading)
+        } else {
+            rivalGhost.isHidden = true
+        }
         updateCamera(delta, session: session)
     }
 
@@ -161,6 +171,10 @@ final class DrivingWorld {
             driftElapsed = 0
         }
 
+        if session.mode == .online {
+            OnlineRacing.shared.sendPosition(x: positionX, z: positionZ, heading: heading,
+                                             speed: velocity, checkpoint: session.raceCheckpoint, dt: dt)
+        }
         session.updateSprint(delta: dt, meters: velocity * dt)
 
         hudElapsed += dt
@@ -406,6 +420,20 @@ final class DrivingWorld {
         // Small rear spoiler
         addCarBox(width: 2.2, height: 0.10, length: 0.45,
                   x: 0, y: 1.44, z: 1.98, material: black)
+    }
+
+    private func makeGhost() {
+        let body = SCNBox(width: 2.28, height: 0.72, length: 4.6, chamferRadius: 0.23)
+        body.firstMaterial = glowMaterial(UIColor(red: 1, green: 0.42, blue: 0.15, alpha: 0.76), intensity: 0.5)
+        let node = SCNNode(geometry: body)
+        node.position.y = 1.1
+        rivalGhost.addChildNode(node)
+        let cabin = SCNNode(geometry: SCNBox(width: 1.65, height: 0.65, length: 1.9, chamferRadius: 0.25))
+        cabin.geometry?.firstMaterial = material(.black, roughness: 0.3)
+        cabin.position.y = 1.6
+        rivalGhost.addChildNode(cabin)
+        rivalGhost.isHidden = true
+        scene.rootNode.addChildNode(rivalGhost)
     }
 
     private func createCamera() {

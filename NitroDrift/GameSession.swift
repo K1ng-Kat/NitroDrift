@@ -7,6 +7,7 @@ enum DriveMode: String, CaseIterable {
     case sprint = "Sprint"
     case circuit = "Circuit"
     case pursuit = "Hot Pursuit"
+    case online = "Online Duel"
 }
 
 enum CarPaint: String, CaseIterable, Identifiable {
@@ -135,7 +136,7 @@ final class GameSession: ObservableObject {
 
     func start(_ selection: DriveMode) {
         mode = selection
-        sprintTime = selection == .circuit ? 180 : selection == .pursuit ? 75 : 90
+        sprintTime = (selection == .circuit || selection == .online) ? 180 : selection == .pursuit ? 75 : 90
         sprintDistance = 0
         raceElapsed = 0
         speedKPH = 0
@@ -174,11 +175,12 @@ final class GameSession: ObservableObject {
             wins += 1
             store.set(wins, forKey: "wins")
         }
-        if won && mode == .circuit && (bestCircuitTime == 0 || raceElapsed < bestCircuitTime) {
+        if won && (mode == .circuit || mode == .online) && (bestCircuitTime == 0 || raceElapsed < bestCircuitTime) {
             bestCircuitTime = raceElapsed
             store.set(bestCircuitTime, forKey: "bestCircuitTime")
         }
         raceResult = RaceResult(won: won, distance: distance, reward: total, title: title)
+        if mode == .online { OnlineRacing.shared.disconnect() }
         input.clear()
         isPaused = true
         feedback(won ? .heavy : .light)
@@ -194,7 +196,7 @@ final class GameSession: ObservableObject {
             sprintDistance += max(0, meters)
             if sprintDistance >= sprintGoal || sprintTime <= 0 { finishSprint() }
         }
-        if mode == .circuit && sprintTime <= 0 {
+        if (mode == .circuit || mode == .online) && sprintTime <= 0 {
             completeEvent(won: false, distance: raceCheckpoint, title: "RACE TIMEOUT", reward: 100)
         }
         if mode == .pursuit && sprintTime <= 0 {
@@ -286,6 +288,7 @@ final class GameSession: ObservableObject {
         isPaused = false
         raceResult = nil
         phase = .menu
+        if mode == .online { OnlineRacing.shared.disconnect() }
     }
 
     func resetCar() {

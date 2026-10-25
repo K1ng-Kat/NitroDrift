@@ -47,7 +47,7 @@ final class StreetSystems {
         rival = nil
         police.forEach { $0.node.removeFromParentNode() }
         police.removeAll()
-        session.raceCheckpointTotal = mode == .circuit ? Self.checkpoints.count : 0
+        session.raceCheckpointTotal = (mode == .circuit || mode == .online) ? Self.checkpoints.count : 0
         session.raceCheckpoint = 0
         session.racePosition = 1
 
@@ -68,7 +68,7 @@ final class StreetSystems {
             session.heat = 26
             session.wantedLevel = 2
         }
-        gates.forEach { $0.isHidden = mode != .circuit }
+        gates.forEach { $0.isHidden = mode != .circuit && mode != .online }
         updateGateHighlight(index: 0)
     }
 
@@ -86,7 +86,7 @@ final class StreetSystems {
             traffic[i].node.position = SCNVector3(Float(traffic[i].x), 0, Float(traffic[i].z))
         }
 
-        if session.mode == .circuit {
+        if session.mode == .circuit || session.mode == .online {
             updateCircuit(dt: dt, x: x, z: z, session: session)
         } else if session.mode == .pursuit {
             updatePolice(dt: dt, x: x, z: z, session: session)
@@ -106,6 +106,7 @@ final class StreetSystems {
                 coolDown = 1.0
                 session.damage = min(100, session.damage + min(25, abs(speed - bot.speed) * 0.3 + 8))
                 session.feedback(.heavy)
+                if session.soundEnabled { AudioDirector.shared.play(.crash) }
                 if session.mode == .pursuit && bot.isPolice {
                     session.heat = min(100, session.heat + 23)
                 }
@@ -125,6 +126,7 @@ final class StreetSystems {
                 session.raceCheckpoint += 1
                 session.earn(75, reputation: 5)
                 session.feedback(.light)
+                if session.soundEnabled { AudioDirector.shared.play(.checkpoint) }
                 updateGateHighlight(index: session.raceCheckpoint)
             }
         }
@@ -152,6 +154,10 @@ final class StreetSystems {
                 session.completeEvent(won: false, distance: session.raceCheckpoint,
                                       title: "RIVAL WINS", reward: 160)
             }
+        }
+
+        if session.mode == .online && OnlineRacing.shared.rivalCheckpoint >= checkpoints.count && session.raceCheckpoint < checkpoints.count {
+            session.completeEvent(won: false, distance: session.raceCheckpoint, title: "RIVAL WINS", reward: 160)
         }
 
         if session.raceCheckpoint >= checkpoints.count && session.raceResult == nil {
@@ -239,7 +245,7 @@ final class StreetSystems {
 
     private func updateGateHighlight(index: Int) {
         for (i, gate) in gates.enumerated() {
-            gate.isHidden = lastMode != .circuit || i != index
+            gate.isHidden = (lastMode != .circuit && lastMode != .online) || i != index
         }
     }
 
