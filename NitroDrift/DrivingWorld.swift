@@ -532,28 +532,44 @@ final class DrivingWorld {
     }
 
     private func addStreetLight(x: Double, z: Double) {
-        let pole = material(UIColor(red: 0.16, green: 0.2, blue: 0.29, alpha: 1), roughness: 0.5)
-        let poleGeometry = SCNCylinder(radius: 0.16, height: 8)
-        poleGeometry.firstMaterial = pole
-        let poleNode = SCNNode(geometry: poleGeometry)
-        poleNode.position = SCNVector3(Float(x), 4, Float(z))
-        scene.rootNode.addChildNode(poleNode)
+        let steel = material(UIColor(red: 0.25, green: 0.27, blue: 0.28, alpha: 1), roughness: 0.38)
+        steel.metalness.contents = 0.75
+        let steelFrame = SCNNode(geometry: SCNCylinder(radius: 0.11, height: 7.6))
+        steelFrame.geometry?.firstMaterial = steel
+        steelFrame.position = SCNVector3(Float(x), 3.8, Float(z))
+        scene.rootNode.addChildNode(steelFrame)
 
-        let lampNode = SCNNode(geometry: SCNSphere(radius: 0.48))
-        lampNode.geometry?.firstMaterial = glowMaterial(
-            UIColor(red: 0.29, green: 0.73, blue: 1.0, alpha: 1), intensity: 2.6)
-        lampNode.position = SCNVector3(Float(x), 8.1, Float(z))
-        scene.rootNode.addChildNode(lampNode)
+        // Road-facing arm and downlight give a recognizable lamp silhouette.
+        let arm = SCNNode(geometry: SCNBox(width: 0.16, height: 0.11,
+                                           length: 2.6, chamferRadius: 0.035))
+        arm.geometry?.firstMaterial = steel
+        arm.position = SCNVector3(Float(x), 7.52, Float(z - 1.20))
+        scene.rootNode.addChildNode(arm)
 
-        // Lights on alternating intersections reduce the GPU cost on older iPads.
-        if abs(x) < 180 && abs(z) < 180 && Int(abs(x + z)).isMultiple(of: 2) {
+        let housing = SCNNode(geometry: SCNBox(width: 0.66, height: 0.20,
+                                               length: 0.90, chamferRadius: 0.09))
+        housing.geometry?.firstMaterial = steel
+        housing.position = SCNVector3(Float(x), 7.42, Float(z - 2.52))
+        scene.rootNode.addChildNode(housing)
+
+        let diffuser = SCNNode(geometry: SCNBox(width: 0.56, height: 0.036,
+                                                length: 0.72, chamferRadius: 0.025))
+        diffuser.geometry?.firstMaterial = glowMaterial(
+            UIColor(red: 1.0, green: 0.84, blue: 0.60, alpha: 1), intensity: 1.65)
+        diffuser.position = SCNVector3(Float(x), 7.29, Float(z - 2.52))
+        scene.rootNode.addChildNode(diffuser)
+
+        // Shadowless road-light pools only near the starting neighborhood.
+        // The other streetlights have emissive diffusers but no GPU light.
+        if abs(x) < 200 && abs(z) < 200 {
             let lamp = SCNLight()
             lamp.type = .omni
-            lamp.intensity = 630
+            lamp.intensity = 530
+            lamp.castsShadow = false
             lamp.attenuationStartDistance = 2
-            lamp.attenuationEndDistance = 24
-            lamp.color = UIColor(red: 0.3, green: 0.68, blue: 1, alpha: 1)
-            lampNode.light = lamp
+            lamp.attenuationEndDistance = 18
+            lamp.color = UIColor(red: 1, green: 0.80, blue: 0.61, alpha: 1)
+            diffuser.light = lamp
         }
     }
 
