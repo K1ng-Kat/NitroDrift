@@ -94,7 +94,7 @@ struct NitroDriftRootView: View {
                 StatPill(symbol: "dollarsign.circle.fill", text: "\(session.cash) CR")
                 StatPill(symbol: "star.fill", text: "LVL \(session.level) • \(session.wins) WINS")
                 Spacer()
-                Text("ALPHA 0.3")
+                Text("ALPHA 0.4")
                     .font(.system(size: 10, weight: .black, design: .monospaced))
                     .tracking(2)
                     .foregroundStyle(.white.opacity(0.65))
@@ -234,7 +234,8 @@ struct NitroDriftRootView: View {
     private var settings: some View {
         HStack {
             GlassPanel {
-                VStack(alignment: .leading, spacing: 17) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 13) {
                     header("SETTINGS")
                     Toggle("Haptic feedback", isOn: Binding(
                         get: { session.hapticsEnabled },
@@ -279,7 +280,10 @@ struct NitroDriftRootView: View {
                     Text("NitroDrift Alpha 0.4 • iOS 17+")
                         .font(.system(size: 10, weight: .medium, design: .monospaced))
                         .foregroundStyle(.white.opacity(0.47))
+                    }
+                    .padding(2)
                 }
+                .scrollIndicators(.hidden)
             }
             .frame(width: 390)
             Spacer()

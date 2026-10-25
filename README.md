@@ -2,6 +2,21 @@
 
 Native **3D street-racing game prototype** for iPhone and iPad, made with SwiftUI + SceneKit + GameKit + AVFoundation. iOS 17+.
 
+## Alpha 0.4 — realism systems
+
+This is an integrated realism-focused **mobile prototype**, not photorealism.
+
+- A new force-based, rear-wheel-drive bicycle model uses an automatic six-speed gearbox, simulated engine torque versus RPM, shift interruption, aerodynamic drag, rolling resistance, front/rear slip angles, cornering stiffness, friction-circle tire-force saturation, longitudinal load transfer, lateral yaw inertia, ESC-like optional assist, and separate rear handbrake behavior. Physics is substepped to reduce frame-rate sensitivity.
+- Analog Game Controller support: left stick steers, right trigger throttles, left trigger brakes, A uses nitro, and X applies the handbrake. On-screen gas/steering/nitro remain independent multitouch controls.
+- Wet road mode alters the grip coefficient, darkens pavement, displays localized SceneKit rain particles and reflective puddles, and reduces distant visibility. Choose Dry or Rain in settings.
+- Physically based scene materials now receive environment-based illumination. Cinematic graphics mode enables HDR exposure, subtle bloom, ambient occlusion and moonlight shadows; Balanced reduces effects to preserve performance on lower-memory devices.
+- Chase camera eases through turns with anticipation, acceleration-responsive field of view and light collision shake. Brake lights and forward-pointing headlights now react correctly.
+- Tire marks are recycled to avoid permanent GPU node growth; AI city traffic now approaches red lights using the same timing phase as visible intersection signal poles.
+- The game can load **optional authored vehicle models** named StreetGT.usdz, ApexR.usdz, and VortexX.usdz from its asset directory. Optional legally licensed low/high RPM engine recordings can replace the synthesized fallback and crossfade with the simulated RPM.
+- A Swift CLI physics test exercises acceleration, braking, gears, wet/dry grip differences, analog controller input and numerical stability in GitHub Actions.
+
+**Known limits:** The current bundled car and city are still procedural geometry. Real production-scale photorealism requires detailed externally authored vehicles and environments, PBR texture sets, baked lighting / reflection probes, engine recordings and real-device profiling. This is not a validated full rigid-body multibody simulation. Traffic remains scripted and simplified, multiplayer is still a prototype, and no real-world trademarked vehicles or commercial asset libraries are bundled. Compilation and deterministic smoke tests do **not** establish device FPS, collision realism, or finished gameplay quality.
+
 ## Alpha 0.3 — driving + interaction overhaul
 
 The 0.3 update focuses on fixing intermittent controls and making the experience less toy-like.

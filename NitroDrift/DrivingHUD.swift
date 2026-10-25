@@ -125,7 +125,7 @@ struct DrivingHUD: View {
             actionIcon("pause.fill", accessibility: "Pause") { session.togglePause() }
 
             VStack(alignment: .leading, spacing: 1) {
-                Text(session.district)
+                Text(session.district + (session.weather == .rain ? " · RAIN" : ""))
                     .font(.system(size: compact ? 9 : 12, weight: .heavy, design: .monospaced))
                     .foregroundStyle(NitroTheme.cyan)
                 HStack(spacing: 8) {
