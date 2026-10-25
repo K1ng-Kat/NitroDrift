@@ -52,7 +52,8 @@ struct NitroDriftRootView: View {
 
     private var menu: some View {
         HStack {
-            VStack(alignment: .leading, spacing: 13) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 9) {
                 Text("THE STREETS ARE YOURS")
                     .font(.system(size: 11, weight: .black, design: .rounded))
                     .tracking(3)
@@ -83,7 +84,10 @@ struct NitroDriftRootView: View {
                     session.phase = .settings
                 }
             }
-            .frame(width: 298, alignment: .leading)
+                }
+            }
+            .scrollIndicators(.hidden)
+            .frame(width: 298)
 
             Spacer()
 
@@ -91,7 +95,7 @@ struct NitroDriftRootView: View {
                 StatPill(symbol: "dollarsign.circle.fill", text: "\(session.cash) CR")
                 StatPill(symbol: "star.fill", text: "LVL \(session.level) • \(session.wins) WINS")
                 Spacer()
-                Text("ALPHA 0.1")
+                Text("ALPHA 0.2")
                     .font(.system(size: 10, weight: .black, design: .monospaced))
                     .tracking(2)
                     .foregroundStyle(.white.opacity(0.65))

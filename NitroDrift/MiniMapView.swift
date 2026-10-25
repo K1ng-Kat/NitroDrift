@@ -58,6 +58,6 @@ struct MiniMapView: View {
             RoundedRectangle(cornerRadius: 13)
                 .strokeBorder(NitroTheme.cyan.opacity(0.32), lineWidth: 1)
         }
-        .accessibilityLabel("Minimap; district \\(session.district)")
+        .accessibilityLabel("Minimap; district \(session.district)")
     }
 }
