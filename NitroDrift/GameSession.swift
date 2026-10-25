@@ -106,6 +106,11 @@ final class GameSession: ObservableObject {
     @Published var raceElapsed = 0.0
     @Published var damage = 0.0
     @Published var policeNearby = false
+    @Published var playerX = 0.0
+    @Published var playerZ = 35.0
+    @Published var playerHeading = 0.0
+    @Published var nextGateDistance = 0
+    @Published var nextGateDirection = "↑"
     @Published var handlingAssist = true
 
     var input = DriverInput()
@@ -180,7 +185,7 @@ final class GameSession: ObservableObject {
             store.set(bestCircuitTime, forKey: "bestCircuitTime")
         }
         raceResult = RaceResult(won: won, distance: distance, reward: total, title: title)
-        if mode == .online { OnlineRacing.shared.disconnect() }
+        if mode == .online && won { OnlineRacing.shared.sendFinish(checkpoint: raceCheckpointTotal) }
         input.clear()
         isPaused = true
         feedback(won ? .heavy : .light)

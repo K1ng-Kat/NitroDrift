@@ -179,6 +179,19 @@ final class DrivingWorld {
 
         hudElapsed += dt
         if hudElapsed >= 0.085 {
+            session.playerX = positionX
+            session.playerZ = positionZ
+            session.playerHeading = heading
+            if session.mode == .circuit || session.mode == .online {
+                let index = min(session.raceCheckpoint, StreetSystems.checkpoints.count - 1)
+                let gate = StreetSystems.checkpoints[index]
+                let dx = gate.0 - positionX
+                let dz = gate.1 - positionZ
+                session.nextGateDistance = Int(hypot(dx, dz))
+                let direction = atan2(dx, -dz) - heading
+                let relative = atan2(sin(direction), cos(direction))
+                session.nextGateDirection = relative > 0.45 ? "↗" : relative < -0.45 ? "↖" : "↑"
+            }
             session.speedKPH = Int((velocity * 3.6).rounded())
             session.nitro = currentNitro
             session.gear = max(1, min(6, Int(velocity * 3.6 / 47.0) + 1))

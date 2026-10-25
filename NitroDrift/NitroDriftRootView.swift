@@ -373,6 +373,10 @@ struct NitroDriftRootView: View {
                     StatPill(symbol: "dollarsign.circle.fill", text: "\(session.cash) CR")
                     StatPill(symbol: "sparkles", text: "\(session.driftScore) DRIFT")
                     StatPill(symbol: "map", text: session.district)
+                    if session.mode == .circuit || session.mode == .online {
+                        StatPill(symbol: "location.north.fill",
+                                 text: "\(session.nextGateDirection) \(session.nextGateDistance) M")
+                    }
                     Spacer()
 
                     if session.mode != .freeRide {
@@ -410,6 +414,10 @@ struct NitroDriftRootView: View {
                 Spacer()
 
                 HStack(alignment: .bottom, spacing: 9) {
+                    MiniMapView(session: session)
+                        .frame(width: 102, height: 102)
+                        .padding(.bottom, 2)
+                    Spacer(minLength: 2)
                     HoldDriveButton(label: "LEFT", symbol: "arrow.left",
                                     onPressed: { session.input.left = $0 })
                     HoldDriveButton(label: "RIGHT", symbol: "arrow.right",

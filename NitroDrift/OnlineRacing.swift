@@ -18,6 +18,7 @@ final class OnlineRacing: NSObject, ObservableObject {
 
     private var match: GKMatch?
     private var transmitCooldown = 0.0
+    private var lastPosition = RemoteCarState(x: 0, z: 35, heading: 0, checkpoint: 0, speed: 0)
     private let leaderboardID = "nitrodrift_wins"
 
     struct RemoteCarState: Codable {
@@ -81,8 +82,18 @@ final class OnlineRacing: NSObject, ObservableObject {
         transmitCooldown = 0
         let packet = RemoteCarState(x: x, z: z, heading: heading,
                                     checkpoint: checkpoint, speed: speed)
+        lastPosition = packet
         guard let data = try? JSONEncoder().encode(packet) else { return }
         try? match.sendData(toAllPlayers: data, with: .unreliable)
+    }
+
+    func sendFinish(checkpoint: Int) {
+        guard connected, let match else { return }
+        let packet = RemoteCarState(x: lastPosition.x, z: lastPosition.z,
+                                    heading: lastPosition.heading,
+                                    checkpoint: checkpoint, speed: 0)
+        guard let data = try? JSONEncoder().encode(packet) else { return }
+        try? match.sendData(toAllPlayers: data, with: .reliable)
     }
 
     func submitScore(_ wins: Int) {
