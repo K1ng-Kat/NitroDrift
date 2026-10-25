@@ -95,7 +95,7 @@ struct NitroDriftRootView: View {
                 StatPill(symbol: "dollarsign.circle.fill", text: "\(session.cash) CR")
                 StatPill(symbol: "star.fill", text: "LVL \(session.level) • \(session.wins) WINS")
                 Spacer()
-                Text("ALPHA 0.2")
+                Text("ALPHA 0.3")
                     .font(.system(size: 10, weight: .black, design: .monospaced))
                     .tracking(2)
                     .foregroundStyle(.white.opacity(0.65))
@@ -259,7 +259,7 @@ struct NitroDriftRootView: View {
                     Text("Progress is saved automatically on this device.")
                         .font(.system(size: 12))
                         .foregroundStyle(.white.opacity(0.65))
-                    Text("NitroDrift Alpha 0.2 • iOS 17+")
+                    Text("NitroDrift Alpha 0.3 • iOS 17+")
                         .font(.system(size: 10, weight: .medium, design: .monospaced))
                         .foregroundStyle(.white.opacity(0.47))
                 }

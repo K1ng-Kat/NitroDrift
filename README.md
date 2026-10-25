@@ -2,6 +2,18 @@
 
 Native **3D street-racing game prototype** for iPhone and iPad, made with SwiftUI + SceneKit + GameKit + AVFoundation. iOS 17+.
 
+## Alpha 0.3 — driving + interaction overhaul
+
+The 0.3 update focuses on fixing intermittent controls and making the experience less toy-like.
+
+- **Controls:** Steering, gas, brake and nitro use independent UIKit \`UIControl\` tracking. They react immediately to touch-down and release on lift, cancellation, moving away, or removal from the window. Controls are individually multitouch-compatible. The underlying SceneKit view no longer receives touches, and the HUD is resized for compact landscape iPhones.
+- **Dynamics:** New \`CarDynamics\` single-track arcade model integrates engine force, aerodynamic drag, rolling losses, progressive braking, speed-dependent steering, limited tire grip, lateral slip, yaw inertia, weight transfer and nitrous acceleration at bounded substeps. This is an improved driving approximation, **not a rigid-body racing simulator**.
+- **Vehicle:** The player car now has angled windshield/back glass, rounded body panels, side mirrors, split lights, vents, rear diffuser/spoiler, exhaust, detailed rims and coupled wheel spin. The entire generated car remains fictional.
+- **World:** Procedural asphalt detail, star-sky gradient, raised sidewalks/curbs, intersection crossings, district landmark signs and more useful nearby street lighting.
+- **HUD:** Reorganized speed, nitro, minimap, vehicle inputs, camera, pause, mode timer, and race information to avoid touch-target overlap on narrow screens.
+
+The update **passes the unsigned iOS simulator compile check**. Physical tap reliability and frame rates still need testing on a real iPhone/iPad. Neither simulator compilation nor these simplified visuals imply console-level realism.
+
 ## Alpha 0.2 — implemented
 
 | System | What's playable |
