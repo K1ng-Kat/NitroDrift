@@ -16,7 +16,7 @@ jobs:
       - name: Validate NitroDrift sync tooling
         run: |
           bash -n scripts/nd-sync
-          python3 -m py_compile scripts/merge_xcode_settings.py
+          python3 -m py_compile scripts/merge_xcode_settings.py scripts/recover_xcode_project.py
           python3 - <<'PY'
           import pathlib, tempfile, subprocess
           with tempfile.TemporaryDirectory() as root:
@@ -31,6 +31,15 @@ jobs:
               subprocess.run(["python3", "scripts/merge_xcode_settings.py",
                   str(base), str(local), str(remote), str(merged)], check=True)
               assert merged.read_text() == "VERSION = 2;\nDEVELOPMENT_TEAM = \"USERTEAM\";\n"
+              # A structural Xcode rewrite must not block preserving a
+              # changed signing team, and must be flagged for backup retention.
+              local.write_text("VERSION = 1;\nXCODE_EDIT = YES;\nDEVELOPMENT_TEAM = \"USERTEAM\";\n")
+              marker = folder / "not_recovered.txt"
+              subprocess.run(["python3", "scripts/merge_xcode_settings.py",
+                  str(base), str(local), str(remote), str(merged), str(marker)], check=True)
+              assert "DEVELOPMENT_TEAM = \"USERTEAM\";" in merged.read_text()
+              assert "VERSION = 2;" in merged.read_text()
+              assert marker.is_file(), "Other local changes must retain recovery backups"
           PY
       - name: Physics smoke tests
         run: |
