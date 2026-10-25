@@ -17,89 +17,134 @@ case "$remote" in
   "$REPO"|"https://github.com/K1ng-Kat/NitroDrift"|"git@github.com:K1ng-Kat/NitroDrift.git") ;;
   *) printf '❌ Unexpected Git remote: %s\n' "$remote"; exit 1 ;;
 esac
+if [[ "$(git branch --show-current)" != 'main' ]]; then
+  printf '⚠️ You are not on main. Switch to main first.\n'
+  exit 1
+fi
 if [[ -n "$(git ls-files -u)" ]]; then
   echo '❌ Unresolved Git conflict. Settings and stash were not changed.'
   git status --short
   exit 1
 fi
 
-# Skip local Xcode scheme files without stashing. Never skip source edits.
+# Only preserve unstaged Xcode project/user preferences, leaving source edits
+# protected. Never force-reset the branch or silently overwrite a shared scheme.
 metadata_paths=()
-metadata_seen=0
+shared_paths=()
 while IFS= read -r line; do
   [[ -z "$line" ]] && continue
   status="${line:0:2}"
   path="${line:3}"
   case "$path" in
-    NitroDrift.xcodeproj/xcuserdata/*)
-      metadata_seen=1
+    NitroDrift.xcodeproj/project.pbxproj|NitroDrift.xcodeproj/xcuserdata/*)
       if [[ "$status" == ' M' && -f "$path" ]]; then
         metadata_paths+=("$path")
       elif [[ "$status" != '??' ]]; then
-        echo "⚠️ Staged/deleted Xcode preference: $path"; exit 1
+        printf '⚠️ Staged or deleted Xcode project change: %s\n' "$path"
+        git status --short
+        exit 1
       fi
       ;;
     NitroDrift.xcodeproj/xcshareddata/*)
       if [[ "$status" == '??' ]]; then
-        metadata_seen=1
+        shared_paths+=("$path")
       else
-        echo '⚠️ Tracked shared Xcode scheme changed; commit or stash it first.'; exit 1
+        printf '⚠️ A tracked shared Xcode scheme has changed: %s\n' "$path"
+        printf 'Commit or stash shared scheme changes before syncing.\n'
+        exit 1
       fi
       ;;
     *)
-      echo '⚠️ Local changes detected. Nothing overwritten.'
+      printf '⚠️ Source or other local changes detected. Nothing overwritten.\n'
       git status --short
-      echo 'Commit or stash changes before syncing.'
+      printf 'Commit or stash these changes before syncing.\n'
       exit 1
       ;;
   esac
 done < <(git status --porcelain=v1 --untracked-files=all)
 
-# For legacy tracked Xcode preferences, use an external backup (not Git stash).
-backup_dir=""
-restore_metadata() {
-  [[ -z "$backup_dir" ]] && return 0
-  local path
-  for path in "${metadata_paths[@]}"; do
-    mkdir -p "$(dirname "$path")"
-    if ! cp -p "$backup_dir/$path" "$path"; then
-      printf '❌ Your Xcode metadata backup is at %s\n' "$backup_dir"
-      return 1
-    fi
-  done
-  rm -rf -- "$backup_dir"
-  backup_dir=""
-}
-
-if (( ${#metadata_paths[@]} > 0 )); then
-  backup_dir="$(mktemp -d "${TMPDIR:-/tmp}/nd-sync-settings.XXXXXXXX")"
-  for path in "${metadata_paths[@]}"; do
-    mkdir -p "$backup_dir/$(dirname "$path")"
-    cp -p "$path" "$backup_dir/$path"
-  done
-  trap 'restore_metadata || true' EXIT
-  echo '🛡️ Preserving personal Xcode preferences (without Git stash)...'
-  for path in "${metadata_paths[@]}"; do git restore --worktree -- "$path"; done
-fi
-
 printf '🔄 Fetching latest GitHub main...\n'
 git fetch origin main
-if git show-ref --verify --quiet refs/heads/main; then
-  git switch main
-else
-  git switch --track -c main origin/main
+if ! git merge-base --is-ancestor HEAD origin/main; then
+  printf '⚠️ Local main has commits not on GitHub. No force-reset attempted.\n'
+  exit 1
 fi
+for path in "${shared_paths[@]}"; do
+  if git cat-file -e "origin/main:$path" 2>/dev/null; then
+    printf '⚠️ Incoming file conflicts with your local Xcode scheme: %s\n' "$path"
+    printf 'No files overwritten. Save the scheme elsewhere first.\n'
+    exit 1
+  fi
+done
+
+backup_root="$HOME/Documents/.nd-sync-backups"
+backup_dir=''
+if (( ${#metadata_paths[@]} > 0 )); then
+  mkdir -p "$backup_root"
+  backup_dir="$(mktemp -d "$backup_root/recovery.XXXXXXXX")"
+  for path in "${metadata_paths[@]}"; do
+    mkdir -p "$backup_dir/local/$(dirname "$path")" "$backup_dir/base/$(dirname "$path")"
+    cp -p "$path" "$backup_dir/local/$path"
+    git show "HEAD:$path" > "$backup_dir/base/$path"
+  done
+  printf '🛡️ Backed up personal Xcode settings outside the repository.\n'
+  for path in "${metadata_paths[@]}"; do
+    git restore --worktree -- "$path"
+  done
+fi
+
 printf '📥 Updating local project...\n'
-git merge --ff-only origin/main
-if [[ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]]; then
-  echo '❌ Branch does not match origin/main; no force reset was attempted.'; exit 1
+if ! git merge --ff-only origin/main; then
+  if [[ -n "$backup_dir" ]]; then
+    for path in "${metadata_paths[@]}"; do
+      cp -p "$backup_dir/local/$path" "$path"
+    done
+  fi
+  printf '❌ Fast-forward failed; original Xcode files were restored.\n'
+  exit 1
 fi
-restore_metadata
-trap - EXIT
-printf '\n✅ NITRODRIFT FULLY SYNCED!\n'
-if [[ "$metadata_seen" == '1' ]]; then
-  echo '✅ GitHub main updated; local Xcode settings retained'
+
+had_conflict=0
+for path in "${metadata_paths[@]}"; do
+  if [[ "$path" == 'NitroDrift.xcodeproj/project.pbxproj' ]] &&
+     [[ -f "$path" ]] && ! cmp -s "$backup_dir/base/$path" "$path"; then
+    if git merge-file -p --diff3 "$backup_dir/local/$path" \
+         "$backup_dir/base/$path" "$path" > "$backup_dir/merged.pbxproj"; then
+      cp "$backup_dir/merged.pbxproj" "$path"
+      printf '✅ Merged local Xcode project settings with GitHub changes.\n'
+    elif command -v python3 >/dev/null 2>&1 &&
+         [[ -f "$PROJECT/scripts/merge_xcode_settings.py" ]] &&
+         python3 "$PROJECT/scripts/merge_xcode_settings.py" \
+           "$backup_dir/base/$path" "$backup_dir/local/$path" "$path" \
+           "$backup_dir/semantic.pbxproj"; then
+      cp "$backup_dir/semantic.pbxproj" "$path"
+      printf '✅ Preserved personal signing settings with the updated project.\n'
+    else
+      cp "$backup_dir/merged.pbxproj" "$backup_dir/conflict.pbxproj"
+      printf '⚠️ Xcode project settings need manual conflict resolution.\n'
+      printf '   Local original: %s\n' "$backup_dir/local/$path"
+      printf '   Conflict preview: %s\n' "$backup_dir/conflict.pbxproj"
+      printf '   GitHub project kept intact; your original is safely backed up.\n'
+      had_conflict=1
+    fi
+  else
+    mkdir -p "$(dirname "$path")"
+    cp -p "$backup_dir/local/$path" "$path"
+  fi
+done
+if (( had_conflict != 0 )); then
+  printf '📁 Recovery folder: %s\n' "$backup_dir"
+  exit 1
+fi
+if [[ -n "$backup_dir" ]]; then
+  rm -rf -- "$backup_dir"
+fi
+
+printf '\n✅ NITRODRIFT GITHUB SYNC COMPLETE!\n'
+if (( ${#metadata_paths[@]} > 0 || ${#shared_paths[@]} > 0 )); then
+  printf '✅ GitHub main updated; local Xcode settings retained.\n'
+  printf 'ℹ️ Your personal Xcode edits may still appear as local modifications.\n'
 else
-  echo '✅ Local matches GitHub main'
+  printf '✅ Local matches GitHub main.\n'
 fi
 printf '🔖 Commit: %s\n📂 %s\n\n' "$(git rev-parse --short HEAD)" "$PROJECT"
