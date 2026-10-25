@@ -1,0 +1,31 @@
+name: Install CC0 Night Lighting
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/install_night_hdri.py'
+      - '.github/workflows/install-cc0-lighting.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  lighting:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Image processing dependency
+        run: python3 -m pip install --user opencv-python-headless
+      - name: Download and tonemap official Poly Haven CC0 nighttime HDRI
+        run: python3 scripts/install_night_hdri.py
+      - name: Bundle night lighting resource
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add NitroDrift/Assets.scnassets/Environment/
+          if ! git diff --cached --quiet; then
+            git commit -m 'Bundle CC0 Shanghai Bund night environment'
+            git push origin HEAD:main
+          fi
