@@ -1,108 +1,105 @@
 #!/bin/bash
 set -euo pipefail
-
 PROJECT="$HOME/Documents/NitroDrift"
 REPO="https://github.com/K1ng-Kat/NitroDrift.git"
-
-printf '\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'
-printf '     NITRODRIFT GITHUB SYNC\n'
-printf '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n'
+printf '\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n     NITRODRIFT GITHUB SYNC\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n'
 printf '📁 Project: %s\n' "$PROJECT"
-
 if [[ ! -e "$PROJECT" ]]; then
-  printf '📦 Project missing — cloning from GitHub...\n'
   mkdir -p "$HOME/Documents"
   git clone "$REPO" "$PROJECT"
 fi
-
 if ! git -C "$PROJECT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-  printf '❌ Existing NitroDrift folder is not a Git repository. Nothing changed.\n'
+  echo '❌ NitroDrift folder is not a Git repository.'; exit 1
+fi
+cd "$PROJECT"
+remote="$(git remote get-url origin 2>/dev/null || true)"
+case "$remote" in
+  "$REPO"|"https://github.com/K1ng-Kat/NitroDrift"|"git@github.com:K1ng-Kat/NitroDrift.git") ;;
+  *) printf '❌ Unexpected Git remote: %s\n' "$remote"; exit 1 ;;
+esac
+if [[ -n "$(git ls-files -u)" ]]; then
+  echo '❌ Unresolved Git conflict. Settings and stash were not changed.'
+  git status --short
   exit 1
 fi
 
-cd "$PROJECT"
+# Skip local Xcode scheme files without stashing. Never skip source edits.
+metadata_paths=()
+metadata_seen=0
+while IFS= read -r line; do
+  [[ -z "$line" ]] && continue
+  status="${line:0:2}"
+  path="${line:3}"
+  case "$path" in
+    NitroDrift.xcodeproj/xcuserdata/*)
+      metadata_seen=1
+      if [[ "$status" == ' M' && -f "$path" ]]; then
+        metadata_paths+=("$path")
+      elif [[ "$status" != '??' ]]; then
+        echo "⚠️ Staged/deleted Xcode preference: $path"; exit 1
+      fi
+      ;;
+    NitroDrift.xcodeproj/xcshareddata/*)
+      if [[ "$status" == '??' ]]; then
+        metadata_seen=1
+      else
+        echo '⚠️ Tracked shared Xcode scheme changed; commit or stash it first.'; exit 1
+      fi
+      ;;
+    *)
+      echo '⚠️ Local changes detected. Nothing overwritten.'
+      git status --short
+      echo 'Commit or stash changes before syncing.'
+      exit 1
+      ;;
+  esac
+done < <(git status --porcelain=v1 --untracked-files=all)
 
-remote="$(git remote get-url origin 2>/dev/null || true)"
-case "$remote" in
-  "$REPO"|"https://github.com/K1ng-Kat/NitroDrift"|"git@github.com:K1ng-Kat/NitroDrift.git")
-    ;;
-  *)
-    printf '❌ Unexpected Git remote: %s\nNothing changed.\n' "$remote"
-    exit 1
-    ;;
-esac
-
-# Xcode frequently rewrites scheme metadata while you work. Preserve *only*
-# these known local settings automatically. Never auto-stash source changes.
-changes="$(git status --porcelain --untracked-files=all)"
-metadata_only=0
-if [[ -n "$changes" ]]; then
-  while IFS= read -r line; do
-    path="${line:3}"
-    case "$path" in
-      NitroDrift.xcodeproj/xcuserdata/*|NitroDrift.xcodeproj/xcshareddata/*)
-        metadata_only=1
-        ;;
-      *)
-        printf '⚠️ Local changes detected. Nothing overwritten.\n'
-        git status --short
-        printf 'Commit or stash your code changes before syncing.\n'
-        exit 1
-        ;;
-    esac
-  done <<< "$changes"
-fi
-
-saved_xcode=0
-restore_xcode() {
-  if [[ "$saved_xcode" == "1" ]]; then
-    printf '♻️ Restoring your local Xcode settings...\n'
-    if git stash pop --index; then
-      saved_xcode=0
-    else
-      saved_xcode=0
-      printf '⚠️ Could not restore Xcode settings automatically.\n'
-      printf 'Your settings are preserved in the Git stash; check: git stash list\n'
+# For legacy tracked Xcode preferences, use an external backup (not Git stash).
+backup_dir=""
+restore_metadata() {
+  [[ -z "$backup_dir" ]] && return 0
+  local path
+  for path in "${metadata_paths[@]}"; do
+    mkdir -p "$(dirname "$path")"
+    if ! cp -p "$backup_dir/$path" "$path"; then
+      printf '❌ Your Xcode metadata backup is at %s\n' "$backup_dir"
       return 1
     fi
-  fi
-  return 0
+  done
+  rm -rf -- "$backup_dir"
+  backup_dir=""
 }
 
-# Also attempt to restore Xcode metadata if the fetch/merge fails.
-trap 'restore_xcode || true' EXIT
-
-if [[ "$metadata_only" == "1" ]]; then
-  printf '🛡️ Preserving local Xcode scheme settings during sync...\n'
-  git stash push --include-untracked -m "nd-sync temporary Xcode settings" >/dev/null
-  saved_xcode=1
+if (( ${#metadata_paths[@]} > 0 )); then
+  backup_dir="$(mktemp -d "${TMPDIR:-/tmp}/nd-sync-settings.XXXXXXXX")"
+  for path in "${metadata_paths[@]}"; do
+    mkdir -p "$backup_dir/$(dirname "$path")"
+    cp -p "$path" "$backup_dir/$path"
+  done
+  trap 'restore_metadata || true' EXIT
+  echo '🛡️ Preserving personal Xcode preferences (without Git stash)...'
+  for path in "${metadata_paths[@]}"; do git restore --worktree -- "$path"; done
 fi
 
 printf '🔄 Fetching latest GitHub main...\n'
 git fetch origin main
-
 if git show-ref --verify --quiet refs/heads/main; then
   git switch main
 else
   git switch --track -c main origin/main
 fi
-
 printf '📥 Updating local project...\n'
 git merge --ff-only origin/main
-
 if [[ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]]; then
-  printf '⚠️ Local commits differ from GitHub main. Nothing overwritten.\n'
-  exit 1
+  echo '❌ Branch does not match origin/main; no force reset was attempted.'; exit 1
 fi
-
-restore_xcode
+restore_metadata
 trap - EXIT
-
 printf '\n✅ NITRODRIFT FULLY SYNCED!\n'
-if [[ "$metadata_only" == "1" ]]; then
-  printf '✅ GitHub main updated; local Xcode scheme settings preserved\n'
+if [[ "$metadata_seen" == '1' ]]; then
+  echo '✅ GitHub main updated; local Xcode settings retained'
 else
-  printf '✅ Local matches GitHub main\n'
+  echo '✅ Local matches GitHub main'
 fi
-printf '🔖 Commit: %s\n' "$(git rev-parse --short HEAD)"
-printf '📂 %s\n\n' "$PROJECT"
+printf '🔖 Commit: %s\n📂 %s\n\n' "$(git rev-parse --short HEAD)" "$PROJECT"
