@@ -11,6 +11,8 @@ final class StreetWeather {
     private let reflectedRoad: SCNNode
     private let mirrorFloor: SCNFloor
     private let puddles: [SCNNode]
+    private let waterMasks: [SCNNode]
+    private let mirrorMask: SCNNode
     private let water: SCNMaterial
     private var isWet = false
     private var cinematic = false
@@ -127,6 +129,23 @@ final class StreetWeather {
         mirrorFloor = floor
         reflectedRoad = mirrorNode
 
+        // Real geometry mask for the Metal refraction pass. A mask is needed
+        // because screen pixels without water must remain completely unchanged.
+        let whiteMask = SCNMaterial()
+        whiteMask.diffuse.contents = UIColor.white
+        whiteMask.lightingModel = .constant
+        whiteMask.writesToDepthBuffer = true
+        whiteMask.isDoubleSided = true
+        let sheet = SCNNode(geometry: SCNPlane(width: 21.2, height: 66))
+        sheet.geometry?.firstMaterial = whiteMask
+        sheet.position = SCNVector3(0, 0.12, 0)
+        sheet.eulerAngles.x = -.pi / 2
+        sheet.categoryBitMask = ScreenSpaceWater.waterMaskCategory
+        sheet.castsShadow = false
+        sheet.isHidden = true
+        scene.rootNode.addChildNode(sheet)
+        mirrorMask = sheet
+
         water = SCNMaterial()
         water.diffuse.contents = UIColor(red: 0.11, green: 0.17, blue: 0.24, alpha: 0.62)
         water.lightingModel = .physicallyBased
@@ -139,6 +158,7 @@ final class StreetWeather {
         water.shaderModifiers = [.surface: Self.rippleShader]
 
         var nodes: [SCNNode] = []
+        var masks: [SCNNode] = []
         for i in 0..<72 {
             // Distributed along real road centerlines, not inside buildings.
             let road = Float((i % 7 - 3) * 150)
@@ -158,8 +178,19 @@ final class StreetWeather {
             p.castsShadow = false
             scene.rootNode.addChildNode(p)
             nodes.append(p)
+
+            let mask = SCNNode(geometry: SCNPlane(width: width, height: length))
+            mask.geometry?.firstMaterial = whiteMask
+            mask.position = SCNVector3(p.position.x, p.position.y + 0.01, p.position.z)
+            mask.eulerAngles = p.eulerAngles
+            mask.isHidden = true
+            mask.castsShadow = false
+            mask.categoryBitMask = ScreenSpaceWater.waterMaskCategory
+            scene.rootNode.addChildNode(mask)
+            masks.append(mask)
         }
         puddles = nodes
+        waterMasks = masks
     }
 
     func configure(wet: Bool, quality: GraphicsQuality) {
@@ -175,7 +206,9 @@ final class StreetWeather {
         mirrorFloor.reflectionResolutionScaleFactor = ultra ? 0.55 : cinematic ? 0.34 : 0.17
         for (index, puddle) in puddles.enumerated() {
             puddle.isHidden = !wet || (!cinematic && index.isMultiple(of: 2))
+            waterMasks[index].isHidden = !wet || !ultra
         }
+        mirrorMask.isHidden = !wet || !ultra
     }
 
     func update(x: Double, z: Double) {
@@ -192,10 +225,14 @@ final class StreetWeather {
             reflectedRoad.position = SCNVector3(Float(gridX), 0.101,
                                                 Float(max(-455, min(455, z))))
             reflectedRoad.eulerAngles.y = 0
+            mirrorMask.position = SCNVector3(reflectedRoad.position.x, 0.12, reflectedRoad.position.z)
+            mirrorMask.eulerAngles = SCNVector3(-Float.pi / 2, 0, 0)
         } else {
             reflectedRoad.position = SCNVector3(Float(max(-455, min(455, x))), 0.101,
                                                 Float(gridZ))
             reflectedRoad.eulerAngles.y = .pi / 2
+            mirrorMask.position = SCNVector3(reflectedRoad.position.x, 0.12, reflectedRoad.position.z)
+            mirrorMask.eulerAngles = SCNVector3(-Float.pi / 2, 0, Float.pi / 2)
         }
     }
 }
