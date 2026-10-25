@@ -32,6 +32,8 @@ final class DrivingWorld {
     private var lastPhase: GamePhase = .menu
     private var displayedPaint: CarPaint = .electricBlue
     private var displayedStyle: CarStyle = .street
+    private var cameraLookTarget = SCNVector3(0, 1.1, 28)
+    private var impactShake = 0.0
     private var currentQuality: GraphicsQuality?
     private var directionalLight: SCNLight?
 
@@ -171,6 +173,7 @@ final class DrivingWorld {
 
         let impact = streets.advance(dt, x: positionX, z: positionZ, speed: velocity, session: session)
         if impact > 0 {
+            impactShake = min(1, impactShake + impact)
             dynamics.impact(strength: impact)
             velocity = dynamics.speed
         }
@@ -258,11 +261,16 @@ final class DrivingWorld {
                 targetX += forwardX * 9
                 targetZ += forwardZ * 9
             default: // chase
-                desiredX = positionX - forwardX * 10.5
-                desiredY = 4.7
-                desiredZ = positionZ - forwardZ * 10.5
-                targetX += forwardX * 7
-                targetZ += forwardZ * 7
+                let trailingDistance = 7.8 + min(3.0, velocity * 0.052)
+                desiredX = positionX - forwardX * trailingDistance
+                desiredY = 3.2 + min(0.65, velocity * 0.015)
+                desiredZ = positionZ - forwardZ * trailingDistance
+                targetX += forwardX * 10
+                targetY = 1.25
+                targetZ += forwardZ * 10
+                let anticipate = max(-2.5, min(2.5, dynamics.yawRate * 2.2))
+                targetX += cos(heading) * anticipate
+                targetZ += sin(heading) * anticipate
             }
         } else {
             // Cinematic orbit for the home screen and garage.
@@ -279,13 +287,21 @@ final class DrivingWorld {
         let oldFOV = Double(camera.camera?.fieldOfView ?? 68.0)
         camera.camera?.fieldOfView = CGFloat(oldFOV + (desiredFOV - oldFOV) * min(1, dt * 3.4))
 
+        impactShake *= exp(-dt * 10.0)
+        if session.phase == .driving {
+            desiredY += sin(elapsed * 47) * impactShake * 0.17
+        }
+        let targetLerp = Float(1 - exp(-dt * 4.2))
+        cameraLookTarget.x += (Float(targetX) - cameraLookTarget.x) * targetLerp
+        cameraLookTarget.y += (Float(targetY) - cameraLookTarget.y) * targetLerp
+        cameraLookTarget.z += (Float(targetZ) - cameraLookTarget.z) * targetLerp
         let lerp = Float(min(1, dt * 5))
         camera.position = SCNVector3(
             camera.position.x + (Float(desiredX) - camera.position.x) * lerp,
             camera.position.y + (Float(desiredY) - camera.position.y) * lerp,
             camera.position.z + (Float(desiredZ) - camera.position.z) * lerp
         )
-        camera.look(at: SCNVector3(Float(targetX), Float(targetY), Float(targetZ)))
+        camera.look(at: cameraLookTarget)
     }
 
     private func createEnvironment() {
