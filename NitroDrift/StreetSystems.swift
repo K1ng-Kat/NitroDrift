@@ -11,6 +11,7 @@ final class StreetSystems {
         var z: Double
         var heading: Double
         var speed: Double
+        var cruiseSpeed = 17.0
         let lane: Double
         let horizontal: Bool
         let isPolice: Bool
@@ -31,9 +32,12 @@ final class StreetSystems {
     private var lastMode: DriveMode = .freeRide
     private var coolDown = 0.0
     private var tickTime = 0.0
+    private var signalTime = 0.0
+    private var citySignals: CitySignals
 
     init(scene: SCNScene) {
         self.scene = scene
+        citySignals = CitySignals(scene: scene)
         generateTraffic()
         makeGates()
     }
@@ -76,11 +80,29 @@ final class StreetSystems {
     func advance(_ dt: Double, x: Double, z: Double, speed: Double, session: GameSession) -> Double {
         guard session.phase == .driving && !session.isPaused else { return 0 }
         tickTime += dt
+        signalTime += dt
+        citySignals.update(time: signalTime, delta: dt)
         coolDown = max(0, coolDown - dt)
 
         for i in traffic.indices {
-            traffic[i].x += (traffic[i].horizontal ? traffic[i].speed * dt : 0)
-            traffic[i].z += (traffic[i].horizontal ? 0 : -traffic[i].speed * dt)
+            let car = traffic[i]
+            let roadPosition = car.horizontal ? car.x : car.z
+            let crossing = car.horizontal
+                ? ceil(roadPosition / 150.0) * 150.0
+                : floor(roadPosition / 150.0) * 150.0
+            let distance = car.horizontal
+                ? crossing - roadPosition : roadPosition - crossing
+            let red = !CitySignals.isGreen(vertical: !car.horizontal, at: signalTime)
+            // Slow toward the stop line; a vehicle already inside the
+            // intersection may continue clearing it when the light changes.
+            let needsStop = red && distance > 5 && distance < 29
+            let desiredSpeed = needsStop ? max(0, (distance - 6) * 0.42) : car.cruiseSpeed
+            let acceleration = desiredSpeed < car.speed ? -7.5 : 2.2
+            traffic[i].speed += acceleration * dt
+            if acceleration < 0 { traffic[i].speed = max(desiredSpeed, traffic[i].speed) }
+            else { traffic[i].speed = min(desiredSpeed, traffic[i].speed) }
+            traffic[i].x += (car.horizontal ? traffic[i].speed * dt : 0)
+            traffic[i].z += (car.horizontal ? 0 : -traffic[i].speed * dt)
             if traffic[i].x > 365 { traffic[i].x = -365 }
             if traffic[i].z < -365 { traffic[i].z = 365 }
             traffic[i].node.position = SCNVector3(Float(traffic[i].x), 0, Float(traffic[i].z))
@@ -217,7 +239,9 @@ final class StreetSystems {
                                 isPolice: false)
             node.position = SCNVector3(Float(bot.x), 0, Float(bot.z))
             node.eulerAngles.y = Float(-bot.heading)
-            traffic.append(bot)
+            var driving = bot
+            driving.cruiseSpeed = bot.speed
+            traffic.append(driving)
         }
     }
 
