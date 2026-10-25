@@ -2,6 +2,43 @@
 
 Native **3D street-racing game prototype** for iPhone and iPad, made with SwiftUI + SceneKit + GameKit + AVFoundation. iOS 17+.
 
+## Alpha 0.7 — visual design and car orientation overhaul
+
+This release responds to real gameplay feedback that the world looked ugly and the
+car could appear sideways in the menu or while body roll was animated.
+
+- **Three real CC0, textured USDZ car meshes bundled:** StreetGT (Sports Car),
+  ApexR (1990s Sports Car), VortexX (1980s Sports Car) from Grab3D's
+  [CC0 1.0 model pages](https://grab3d.com/models/vehicles/sports-car/).
+  Assets are shipped offline inside \`Assets.scnassets/Vehicles\`, not fetched
+  from the network by the app.
+- **Correct car alignment:** Heading/yaw lives exclusively on a world root
+  with front local -Z; chassis pitch and roll apply to a separate visual child.
+  The asset importer normalizes its vehicle bounding box to about 4.55 m,
+  raises the underbody to the ground, and automatically turns assets with an
+  X-major longitudinal axis by 90 degrees. The garage and menu camera now
+  remains behind the car in a consistent rear three-quarter position instead
+  of orbiting to its side.
+- **Modern building façades:** Six reusable procedural PBR facade atlases add
+  framed, inset windows, varied warm/cool office lighting with separate
+  emission maps, subtly detailed panels, ground-level shop glass, parapets,
+  roof equipment and selective restrained metal accents. This replaces
+  thousands of isolated bright rectangles on solid dark cubes.
+- **Beautiful grounded streetscape:** Warmer, directional streetlamp fixtures
+  replace hovering cyan glowing balls; subtle trees, roof silhouettes and
+  reduced neon introduce visual depth. Traffic cars have shaped PBR bodywork,
+  wheels, painted lamps and toned glass instead of bare rectangles.
+- **Existing real materials retained:** CC0 asphalt diffuse/normal/roughness,
+  nighttime Shanghai Bund image-based lighting, rainy road planar reflections,
+  optional screen-space water refraction and tire spray.
+
+**Reality check:** The imported meshes are game-ready lightweight CC0 assets,
+not high-budget scanned manufacturer vehicles. Dynamic traffic/navigation,
+city architecture, local light and shadow quality, camera realism and refraction
+are still mobile-game approximations. Simulator compilation is tested; real
+device screenshots, performance, and the exact orientation of each third-party
+USDZ asset still require visual QA.
+
 ## Alpha 0.6 — real assets + experimental scene refraction
 
 This update moves beyond solely generated textures, although it is not a fully
