@@ -367,61 +367,10 @@ final class DrivingWorld {
     private func createCar() {
         car.name = "player-car"
         scene.rootNode.addChildNode(car)
-
-        paintMaterial = material(CarPaint.electricBlue.color, roughness: 0.18)
-        paintMaterial.metalness.contents = 0.60
-
-        addCarBox(width: 2.25, height: 0.53, length: 4.50,
-                  x: 0, y: 0.94, z: 0, material: paintMaterial, chamfer: 0.25)
-        let glass = material(UIColor(red: 0.045, green: 0.09, blue: 0.16, alpha: 1), roughness: 0.22)
-        addCarBox(width: 1.70, height: 0.65, length: 2.08,
-                  x: 0, y: 1.49, z: -0.03, material: glass, chamfer: 0.22)
-        addCarBox(width: 2.36, height: 0.19, length: 0.35,
-                  x: 0, y: 0.65, z: -2.16, material: paintMaterial, chamfer: 0.05)
-        addCarBox(width: 2.35, height: 0.15, length: 0.36,
-                  x: 0, y: 0.68, z: 2.13, material: paintMaterial, chamfer: 0.05)
-
-        let black = material(UIColor(red: 0.025, green: 0.03, blue: 0.045, alpha: 1), roughness: 0.9)
-        let rim = material(UIColor(red: 0.58, green: 0.64, blue: 0.75, alpha: 1), roughness: 0.28)
-        for z in [-1.42, 1.43] {
-            for x in [-1.18, 1.18] {
-                let steeringPivot = SCNNode()
-                steeringPivot.position = SCNVector3(Float(x), 0.49, Float(z))
-                let tire = SCNNode(geometry: SCNCylinder(radius: 0.51, height: 0.33))
-                tire.name = "tire"
-                tire.eulerAngles.z = .pi / 2
-                tire.geometry?.firstMaterial = black
-                steeringPivot.addChildNode(tire)
-                let hub = SCNNode(geometry: SCNCylinder(radius: 0.30, height: 0.34))
-                hub.eulerAngles.z = .pi / 2
-                hub.geometry?.firstMaterial = rim
-                steeringPivot.addChildNode(hub)
-                car.addChildNode(steeringPivot)
-                wheelNodes.append(steeringPivot)
-            }
-        }
-
-        let headlight = glowMaterial(.white, intensity: 2.0)
-        let tailLight = glowMaterial(UIColor(red: 1, green: 0.06, blue: 0.12, alpha: 1), intensity: 2.0)
-        for x in [-0.81, 0.81] {
-            addCarBox(width: 0.49, height: 0.15, length: 0.12,
-                      x: x, y: 0.97, z: -2.30, material: headlight)
-            addCarBox(width: 0.56, height: 0.15, length: 0.12,
-                      x: x, y: 0.96, z: 2.30, material: tailLight)
-
-            let flame = SCNNode(geometry: SCNCone(topRadius: 0.02, bottomRadius: 0.19, height: 1.25))
-            flame.position = SCNVector3(Float(x * 0.68), 0.76, 2.82)
-            flame.eulerAngles.x = .pi / 2
-            flame.geometry?.firstMaterial = glowMaterial(
-                UIColor(red: 0.10, green: 0.78, blue: 1, alpha: 1), intensity: 2.2)
-            flame.isHidden = true
-            car.addChildNode(flame)
-            nitroFlames.append(flame)
-        }
-
-        // Small rear spoiler
-        addCarBox(width: 2.2, height: 0.10, length: 0.45,
-                  x: 0, y: 1.44, z: 1.98, material: black)
+        paintMaterial = VehicleArt.mat(CarPaint.electricBlue.color, metal: 0.60, rough: 0.20)
+        let parts = VehicleArt.install(into: car, paint: paintMaterial)
+        wheelNodes = parts.wheels
+        nitroFlames = parts.flames
     }
 
     private func makeGhost() {
