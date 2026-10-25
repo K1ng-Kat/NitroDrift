@@ -92,12 +92,13 @@ struct CarDynamics {
         let peakTorque = 360 + Double(engine) * 34 + Double(carTier) * 70
         let drivenTorque = peakTorque * torqueShape * throttle * (boosting ? 1.32 : 1)
         let wheelForce = shiftTime > 0 ? 0 : drivenTorque * currentRatio * gearboxEfficiency / wheelRadius
-        let brakeForce = brake * mass * (10.2 + Double(brakes) * 0.35)
+        // ABS-inspired service brake: reserve lateral tire grip for steering.
+        let serviceBrakeTarget = brake * mass * (8.1 + Double(brakes) * 0.24)
         let aeroDrag = 0.5 * 1.225 * (0.62 + Double(carTier) * 0.035) * speed * abs(speed)
         let rollingResistance = speed > 0.15 ? 0.012 * mass * gravity : 0
         let engineBraking = throttle == 0 ? 300 + 14 * speed : 0
 
-        let desiredLongitudinalForce = wheelForce - brakeForce - aeroDrag
+        let desiredLongitudinalForce = wheelForce - serviceBrakeTarget - aeroDrag
             - rollingResistance - engineBraking
         let mu = ((assist ? 1.04 : 0.91) + Double(handling) * 0.045) * clamp(surfaceGrip, 0.45, 1.2)
         let axleStaticFront = mass * gravity * rearArm / wheelbase
@@ -106,16 +107,21 @@ struct CarDynamics {
         let transfer = mass * priorLongAcceleration * cgHeight / wheelbase
         let loadF = max(0.20 * mass * gravity, axleStaticFront - transfer)
         let loadR = max(0.20 * mass * gravity, axleStaticRear + transfer)
-        // RWD: powered rear axle, braking biased toward the front axle.
-        let frontLong = -brakeForce * 0.62
-        let rearLong = wheelForce - brakeForce * 0.38 - (handbrake ? mu * loadR * 0.55 : 0)
+        // RWD: front-biased service brakes, with ABS-like force limits.
+        // The rear handbrake is separate and CAN intentionally cause a slide.
+        let maxFrontBrake = 0.72 * mu * loadF
+        let maxRearBrake = 0.72 * mu * loadR
+        let frontLong = -min(serviceBrakeTarget * 0.64, maxFrontBrake)
+        let rearBrake = min(serviceBrakeTarget * 0.36, maxRearBrake)
+        let rearHandbrake = handbrake ? mu * loadR * 0.85 : 0
+        let rearLong = wheelForce - rearBrake - rearHandbrake
         let cappedFrontLong = clamp(frontLong, -mu * loadF, mu * loadF)
         let cappedRearLong = clamp(rearLong, -mu * loadR, mu * loadR)
         let longitudinalForce = cappedFrontLong + cappedRearLong - aeroDrag
             - rollingResistance - engineBraking
         let acceleration = longitudinalForce / mass
         speed = max(0, speed + acceleration * dt)
-        if !input.gas && speed < 0.20 { speed = 0 }
+        if throttle < 0.02 && speed < 0.22 { speed = 0 }
 
         // A realistic steering rack has less effective steering angle at
         // high speeds, and cannot snap instantly between full locks.
@@ -138,11 +144,23 @@ struct CarDynamics {
 
         let lateralAcceleration = (frontLateral + rearLateral) / mass - speed * yawRate
         let yawAcceleration = (frontArm * frontLateral - rearArm * rearLateral) / inertia
-        lateralSpeed = clamp(lateralSpeed + lateralAcceleration * dt, -22, 22)
-        yawRate = clamp(yawRate + yawAcceleration * dt, -1.7, 1.7)
-        if speed < 2.4 {
-            lateralSpeed *= exp(-dt * 7)
-            yawRate *= exp(-dt * 4)
+        lateralSpeed = clamp(lateralSpeed + lateralAcceleration * dt, -14, 14)
+        yawRate += yawAcceleration * dt
+        let physicalYawLimit = min(1.15, mu * gravity / max(speed, 8))
+        yawRate = clamp(yawRate, -physicalYawLimit, physicalYawLimit)
+        if brake > 0 && !handbrake {
+            // Preserve steering, but suppress snap rotation on service braking.
+            let neutralSteer = 1.0 - min(1.0, abs(steeringInput))
+            yawRate *= exp(-dt * brake * (1.4 + 4.4 * neutralSteer))
+            lateralSpeed *= exp(-dt * brake * (1.8 + 1.8 * neutralSteer))
+        }
+        if speed < 3.5 {
+            lateralSpeed *= exp(-dt * (7 + brake * 4))
+            yawRate *= exp(-dt * (6 + brake * 6))
+        }
+        if speed < 0.30 {
+            yawRate = 0
+            lateralSpeed = 0
         }
         if assist {
             // Optional electronic stability assist: gradually damp extremely
@@ -161,7 +179,7 @@ struct CarDynamics {
 
         let slipAngle = atan2(lateralSpeed, max(1, speed))
         let lateralG = clamp((frontLateral + rearLateral) / (mass * gravity), -1.7, 1.7)
-        let targetRoll = clamp(-lateralG * 0.075, -0.095, 0.095)
+        let targetRoll = clamp(-lateralG * 0.055, -0.066, 0.066)
         let targetPitch = clamp(-acceleration / gravity * 0.055, -0.08, 0.08)
         bodyRoll += (targetRoll - bodyRoll) * (1 - exp(-dt * 5.5))
         bodyPitch += (targetPitch - bodyPitch) * (1 - exp(-dt * 4.3))
