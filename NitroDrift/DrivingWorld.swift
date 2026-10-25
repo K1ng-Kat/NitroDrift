@@ -58,7 +58,7 @@ final class DrivingWorld {
             displayedWeather = session.weather
             configureGraphics(session.graphicsQuality)
             let wet = session.weather == .rain
-            weatherFX.configure(wet: wet, cinematic: session.graphicsQuality == .cinematic)
+            weatherFX.configure(wet: wet, quality: session.graphicsQuality)
             asphaltMaterial?.roughness.contents = wet ? 0.18 : 0.77
             // Water and wet asphalt remain mostly nonmetallic; the reflected
             // surroundings come from the road mirror and environment.
@@ -110,16 +110,18 @@ final class DrivingWorld {
 
     private func configureGraphics(_ quality: GraphicsQuality) {
         currentQuality = quality
-        let cinematic = quality == .cinematic
+        let cinematic = quality != .balanced
+        let ultra = quality == .ultra
         camera.camera?.wantsHDR = cinematic
-        camera.camera?.bloomIntensity = cinematic ? 0.24 : 0
+        camera.camera?.bloomIntensity = ultra ? 0.34 : cinematic ? 0.24 : 0
         camera.camera?.vignettingIntensity = cinematic ? 0.26 : 0
-        camera.camera?.screenSpaceAmbientOcclusionIntensity = cinematic ? 0.32 : 0
+        camera.camera?.screenSpaceAmbientOcclusionIntensity = ultra ? 0.47 : cinematic ? 0.32 : 0
         directionalLight?.castsShadow = cinematic
-        directionalLight?.shadowSampleCount = cinematic ? 4 : 1
-        directionalLight?.shadowMapSize = cinematic
-            ? CGSize(width: 1024, height: 1024)
-            : CGSize(width: 512, height: 512)
+        directionalLight?.shadowSampleCount = ultra ? 8 : cinematic ? 4 : 1
+        directionalLight?.shadowMapSize = ultra
+            ? CGSize(width: 2048, height: 2048)
+            : cinematic ? CGSize(width: 1024, height: 1024)
+                        : CGSize(width: 512, height: 512)
         directionalLight?.shadowRadius = cinematic ? 2.5 : 0.5
         directionalLight?.shadowColor = UIColor.black.withAlphaComponent(0.56)
         directionalLight?.orthographicScale = 120

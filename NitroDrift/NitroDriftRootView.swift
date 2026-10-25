@@ -267,6 +267,9 @@ struct NitroDriftRootView: View {
                         }
                     }
                     .pickerStyle(.segmented)
+                    Text("Ultra enables stronger reflections and higher-quality shadows. Balanced saves battery.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.white.opacity(0.60))
                     Text("CAMERA")
                         .font(.system(size: 11, weight: .black))
                         .tracking(2)

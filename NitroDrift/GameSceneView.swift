@@ -18,7 +18,7 @@ struct GameSceneView: UIViewRepresentable {
         view.backgroundColor = UIColor(red: 0.01, green: 0.02, blue: 0.04, alpha: 1)
         view.autoenablesDefaultLighting = false
         view.allowsCameraControl = false
-        view.antialiasingMode = session.graphicsQuality == .cinematic ? .multisampling4X : .multisampling2X
+        view.antialiasingMode = session.graphicsQuality == .balanced ? .multisampling2X : .multisampling4X
         view.preferredFramesPerSecond = 60
         view.isPlaying = true
         context.coordinator.start()
@@ -26,7 +26,7 @@ struct GameSceneView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: SCNView, context: Context) {
-        uiView.antialiasingMode = session.graphicsQuality == .cinematic ? .multisampling4X : .multisampling2X
+        uiView.antialiasingMode = session.graphicsQuality == .balanced ? .multisampling2X : .multisampling4X
     }
 
     static func dismantleUIView(_ uiView: SCNView, coordinator: Coordinator) {

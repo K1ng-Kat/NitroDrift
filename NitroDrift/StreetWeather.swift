@@ -14,6 +14,7 @@ final class StreetWeather {
     private let water: SCNMaterial
     private var isWet = false
     private var cinematic = false
+    private var ultra = false
 
     /// Uses SceneKit surface inputs; applied only to local puddles / road water.
     /// Perturbed normals are evaluated in the correct tangent basis.
@@ -152,15 +153,17 @@ final class StreetWeather {
         puddles = nodes
     }
 
-    func configure(wet: Bool, cinematic: Bool) {
+    func configure(wet: Bool, quality: GraphicsQuality) {
         isWet = wet
+        let cinematic = quality != .balanced
+        ultra = quality == .ultra
         self.cinematic = cinematic
         rainRoot.isHidden = !wet
-        rain.birthRate = wet ? (cinematic ? 440 : 195) : 0
+        rain.birthRate = wet ? (ultra ? 650 : cinematic ? 440 : 195) : 0
         // Expensive real planar reflection rendering is reserved for high quality.
         reflectedRoad.isHidden = !wet || !cinematic
-        mirrorFloor.reflectivity = cinematic ? 0.55 : 0
-        mirrorFloor.reflectionResolutionScaleFactor = cinematic ? 0.34 : 0.17
+        mirrorFloor.reflectivity = ultra ? 0.72 : cinematic ? 0.55 : 0
+        mirrorFloor.reflectionResolutionScaleFactor = ultra ? 0.55 : cinematic ? 0.34 : 0.17
         for (index, puddle) in puddles.enumerated() {
             puddle.isHidden = !wet || (!cinematic && index.isMultiple(of: 2))
         }

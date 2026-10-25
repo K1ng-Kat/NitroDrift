@@ -10,9 +10,15 @@ enum StreetWeatherMode: String, CaseIterable, Identifiable {
 }
 
 enum GraphicsQuality: String, CaseIterable, Identifiable {
-    case cinematic, balanced
+    case ultra, cinematic, balanced
     var id: String { rawValue }
-    var label: String { self == .cinematic ? "Cinematic (HDR + shadows)" : "Balanced (faster)" }
+    var label: String {
+        switch self {
+        case .ultra: return "Ultra"
+        case .cinematic: return "Cinematic"
+        case .balanced: return "Balanced"
+        }
+    }
 }
 enum DriveMode: String, CaseIterable {
     case freeRide = "Free Ride"
