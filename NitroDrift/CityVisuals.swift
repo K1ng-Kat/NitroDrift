@@ -14,7 +14,17 @@ enum CityVisuals {
         return nil
     }
 
-    static func roadRoughness() -> Any { packagedMap("roughness") ?? 0.77 as Any }
+    static func roadRoughness() -> Any {
+        if let texture = packagedMap("roughness") { return texture }
+        return 0.77
+    }
+
+    static func urbanLightingProbe() -> UIImage? {
+        guard let url = Bundle.main.url(forResource: "night_city",
+                                        withExtension: "jpg",
+                                        subdirectory: "Assets.scnassets/Environment") else { return nil }
+        return UIImage(contentsOfFile: url.path)
+    }
 
     static func roadMaterial(horizontal: Bool = false) -> SCNMaterial {
         let image = texture(size: 256) { context, size in
