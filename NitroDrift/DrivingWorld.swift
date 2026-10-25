@@ -122,7 +122,7 @@ final class DrivingWorld {
         }
 
         car.position = SCNVector3(Float(positionX), 0, Float(positionZ))
-        car.eulerAngles.y = Float(heading)
+        car.eulerAngles.y = Float(-heading)
 
         for (index, wheel) in wheelNodes.enumerated() {
             wheel.childNode(withName: "tire", recursively: false)?.eulerAngles.x += Float(velocity * dt / 0.50)
