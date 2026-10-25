@@ -54,7 +54,8 @@ struct CarDynamics {
 
     mutating func step(dt: Double, input: DriverInput,
                        engine: Int, handling: Int, brakes: Int,
-                       carTier: Int, assist: Bool, boosting: Bool) -> Frame {
+                       carTier: Int, assist: Bool, boosting: Bool,
+                       surfaceGrip: Double = 1.0) -> Frame {
         let dt = clamp(dt, 0, 1.0 / 45.0)
         let mass = 1390.0 + Double(carTier) * 95
         let inertia = mass * 1.85
@@ -98,7 +99,7 @@ struct CarDynamics {
 
         let desiredLongitudinalForce = wheelForce - brakeForce - aeroDrag
             - rollingResistance - engineBraking
-        let mu = (assist ? 1.04 : 0.91) + Double(handling) * 0.045
+        let mu = ((assist ? 1.04 : 0.91) + Double(handling) * 0.045) * clamp(surfaceGrip, 0.45, 1.2)
         let axleStaticFront = mass * gravity * rearArm / wheelbase
         let axleStaticRear = mass * gravity * frontArm / wheelbase
         let priorLongAcceleration = clamp(desiredLongitudinalForce / mass, -gravity, gravity)

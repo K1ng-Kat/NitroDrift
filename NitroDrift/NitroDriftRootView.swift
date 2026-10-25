@@ -248,6 +248,15 @@ struct NitroDriftRootView: View {
                                                                         set: { session.setMusic($0) })).tint(NitroTheme.cyan)
                     Toggle("Handling assist", isOn: Binding(get: { session.handlingAssist },
                                                                  set: { session.setAssist($0) })).tint(NitroTheme.cyan)
+                    Picker("Road condition", selection: Binding(
+                        get: { session.weather },
+                        set: { session.setWeather($0) }
+                    )) {
+                        ForEach(StreetWeatherMode.allCases) { mode in
+                            Text(mode.rawValue).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
                     Picker("Graphics quality", selection: Binding(
                         get: { session.graphicsQuality },
                         set: { session.setQuality($0) }

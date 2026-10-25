@@ -8,6 +8,9 @@ final class DrivingWorld {
     let scene = SCNScene()
     private lazy var streets = StreetSystems(scene: scene)
     private lazy var tireTrails = TireTrails(scene: scene)
+    private lazy var weatherFX = StreetWeather(scene: scene)
+    private var displayedWeather: StreetWeatherMode = .dry
+    private var asphaltMaterial: SCNMaterial?
 
     private let car = SCNNode()
     private let camera = SCNNode()
@@ -39,6 +42,7 @@ final class DrivingWorld {
         makeGhost()
         _ = streets
         _ = tireTrails
+        _ = weatherFX
         resetCar()
     }
 
@@ -47,6 +51,16 @@ final class DrivingWorld {
         elapsed += delta
 
         if currentQuality != session.graphicsQuality { configureGraphics(session.graphicsQuality) }
+        if displayedWeather != session.weather {
+            displayedWeather = session.weather
+            let wet = session.weather == .rain
+            weatherFX.setWet(wet)
+            asphaltMaterial?.roughness.contents = wet ? 0.24 : 0.77
+            asphaltMaterial?.metalness.contents = wet ? 0.28 : 0.08
+            scene.fogStartDistance = wet ? 90 : 150
+            scene.fogEndDistance = wet ? 270 : 440
+        }
+        weatherFX.update(x: positionX, z: positionZ)
 
         if lastResetToken != session.resetToken {
             lastResetToken = session.resetToken
@@ -129,7 +143,8 @@ final class DrivingWorld {
         var frame = dynamics.step(dt: 0, input: input, engine: session.engineLevel,
                                   handling: session.handlingLevel, brakes: session.brakeLevel,
                                   carTier: session.carStyle.rawValue,
-                                  assist: session.handlingAssist, boosting: canNitro)
+                                  assist: session.handlingAssist, boosting: canNitro,
+                                  surfaceGrip: session.weather == .rain ? 0.73 : 1.0)
         let previousX = dynamics.x, previousZ = dynamics.z
         for _ in 0..<count {
             frame = dynamics.step(dt: substep, input: input, engine: session.engineLevel,
@@ -308,6 +323,7 @@ final class DrivingWorld {
         scene.rootNode.addChildNode(groundNode)
 
         let asphalt = CityVisuals.roadMaterial()
+        asphaltMaterial = asphalt
         let roadLines = glowMaterial(UIColor(red: 1, green: 0.79, blue: 0.30, alpha: 1), intensity: 0.30)
 
         for coordinate in stride(from: -450, through: 450, by: 150) {
