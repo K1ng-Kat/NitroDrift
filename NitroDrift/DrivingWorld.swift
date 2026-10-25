@@ -7,6 +7,7 @@ import SceneKit
 final class DrivingWorld {
     let scene = SCNScene()
     private lazy var streets = StreetSystems(scene: scene)
+    private lazy var tireTrails = TireTrails(scene: scene)
 
     private let car = SCNNode()
     private let camera = SCNNode()
@@ -37,6 +38,7 @@ final class DrivingWorld {
         createCamera()
         makeGhost()
         _ = streets
+        _ = tireTrails
         resetCar()
     }
 
@@ -64,8 +66,7 @@ final class DrivingWorld {
 
         if displayedStyle != session.carStyle {
             displayedStyle = session.carStyle
-            let tier = Float(session.carStyle.rawValue)
-            car.scale = SCNVector3(1 + tier * 0.07, 1 - tier * 0.025, 1 + tier * 0.08)
+            installCarGeometry(style: session.carStyle)
         }
 
         if session.phase == .driving && !session.isPaused {
@@ -111,6 +112,7 @@ final class DrivingWorld {
         velocity = 0
         currentNitro = 100
         driftElapsed = 0
+        tireTrails.reset()
         car.position = SCNVector3(0, 0, 35)
         car.eulerAngles.y = 0
     }
@@ -175,6 +177,8 @@ final class DrivingWorld {
         }
 
         let slip = abs(frame.slipAngle)
+        tireTrails.update(dt: dt, x: positionX, z: positionZ, heading: heading,
+                          speed: velocity, slip: frame.slipAngle, yaw: dynamics.yawRate)
         driftElapsed += dt
         if velocity > 13 && slip > 0.075 && driftElapsed > 0.25 {
             let score = Int(velocity * min(0.4, slip) * 1.8)
@@ -455,10 +459,25 @@ final class DrivingWorld {
     private func createCar() {
         car.name = "player-car"
         scene.rootNode.addChildNode(car)
-        paintMaterial = VehicleArt.mat(CarPaint.electricBlue.color, metal: 0.60, rough: 0.20)
-        let parts = VehicleArt.install(into: car, paint: paintMaterial)
-        wheelNodes = parts.wheels
-        nitroFlames = parts.flames
+        installCarGeometry(style: .street)
+    }
+
+    private func installCarGeometry(style: CarStyle) {
+        car.childNodes.forEach { $0.removeFromParentNode() }
+        paintMaterial = VehicleArt.mat(displayedPaint.color, metal: 0.63, rough: 0.17)
+        if let highDetail = VehicleAssetLoader.installIfAvailable(style: style,
+                                                                  into: car,
+                                                                  paint: paintMaterial) {
+            wheelNodes = highDetail.wheels
+            nitroFlames = highDetail.flames
+            car.scale = SCNVector3(1, 1, 1)
+        } else {
+            let parts = VehicleArt.install(into: car, paint: paintMaterial)
+            wheelNodes = parts.wheels
+            nitroFlames = parts.flames
+            let tier = Float(style.rawValue)
+            car.scale = SCNVector3(1 + tier * 0.07, 1 - tier * 0.025, 1 + tier * 0.08)
+        }
     }
 
     private func makeGhost() {
