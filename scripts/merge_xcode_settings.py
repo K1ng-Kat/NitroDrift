@@ -27,7 +27,9 @@ def merge(base, local, incoming):
         lambda m: m["indent"] + m["key"] + m["eq"] + "<SIGNING>" + m["tail"], text
     )
     if scrub(base) != scrub(local):
-        raise ValueError("local project edits exceed known personal signing settings")
+        print("NOTE: Local project has additional non-signing changes.",
+              "Those are NOT reapplied; the original backup must be retained.",
+              file=sys.stderr)
     before, edited, remote = settings(base), settings(local), settings(incoming)
     replacements = []
     for key in KEYS:
