@@ -259,6 +259,15 @@ struct NitroDriftRootView: View {
                         .foregroundStyle(.white.opacity(0.7))
                     Toggle("Handling assist", isOn: Binding(get: { session.handlingAssist },
                                                                  set: { session.setAssist($0) })).tint(NitroTheme.cyan)
+                    Picker("Lighting", selection: Binding(
+                        get: { session.timeOfDay },
+                        set: { session.setTimeOfDay($0) }
+                    )) {
+                        ForEach(StreetTimeOfDay.allCases) { mode in
+                            Text(mode.rawValue).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
                     Picker("Road condition", selection: Binding(
                         get: { session.weather },
                         set: { session.setWeather($0) }
@@ -376,6 +385,7 @@ struct NitroDriftRootView: View {
     private var leaderboard: some View {
         HStack(alignment: .top) {
             GlassPanel {
+                ScrollView {
                 VStack(alignment: .leading, spacing: 13) {
                     header("ONLINE RACING")
                     Text(online.status)
@@ -396,6 +406,9 @@ struct NitroDriftRootView: View {
                         .font(.system(size: 10))
                         .foregroundStyle(.white.opacity(0.55))
                 }
+                .padding(2)
+                }
+                .scrollIndicators(.hidden)
             }
             .frame(width: 420)
             Spacer()
