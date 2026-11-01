@@ -20,6 +20,8 @@ struct GameSceneView: UIViewRepresentable {
         view.allowsCameraControl = false
         view.antialiasingMode = session.graphicsQuality == .balanced ? .multisampling2X : .multisampling4X
         view.preferredFramesPerSecond = 60
+        view.rendersContinuously = true
+        view.isJitteringEnabled = session.graphicsQuality == .ultra
         view.isPlaying = true
         context.coordinator.start()
         return view
@@ -33,6 +35,7 @@ struct GameSceneView: UIViewRepresentable {
         if uiView.antialiasingMode != desired {
             uiView.antialiasingMode = desired
         }
+        uiView.isJitteringEnabled = session.graphicsQuality == .ultra
         let useRefraction = session.graphicsQuality == .ultra
             && session.weather == .rain
             && session.screenRefractionEnabled
