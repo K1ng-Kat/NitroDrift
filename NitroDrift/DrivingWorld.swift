@@ -42,9 +42,13 @@ final class DrivingWorld {
     private var ambientLight: SCNLight?
     private var displayedTimeOfDay: StreetTimeOfDay?
     private var usingAuthoredCity = false
+    private let cinematicDetails = SCNNode()
 
     init() {
         createEnvironment()
+        cinematicDetails.name = "cinematic-streetscape"
+        scene.rootNode.addChildNode(cinematicDetails)
+        buildCinematicDetails()
         createCar()
         createCamera()
         makeGhost()
@@ -176,6 +180,7 @@ final class DrivingWorld {
         directionalLight?.shadowColor = UIColor.black.withAlphaComponent(0.56)
         directionalLight?.orthographicScale = 120
         directionalLight?.zFar = 260
+        cinematicDetails.isHidden = quality == .balanced
     }
 
     private func resetCar() {
@@ -627,6 +632,44 @@ final class DrivingWorld {
             lamp.attenuationEndDistance = 18
             lamp.color = UIColor(red: 1, green: 0.80, blue: 0.61, alpha: 1)
             diffuser.light = lamp
+        }
+    }
+
+    private func buildCinematicDetails() {
+        // Reusable PBR meshes, deliberately visual-only: no effect on driving.
+        let metal = material(UIColor(red: 0.22, green: 0.26, blue: 0.29, alpha: 1), roughness: 0.36)
+        metal.metalness.contents = 0.78
+        let glass = material(UIColor(red: 0.12, green: 0.23, blue: 0.30, alpha: 1), roughness: 0.14)
+        glass.metalness.contents = 0.16
+        let pavement = material(UIColor(red: 0.29, green: 0.29, blue: 0.28, alpha: 1), roughness: 0.88)
+        let painted = material(UIColor(red: 0.88, green: 0.84, blue: 0.67, alpha: 1), roughness: 0.7)
+        func box(_ width: CGFloat, _ height: CGFloat, _ depth: CGFloat,
+                 _ x: Float, _ y: Float, _ z: Float, _ surface: SCNMaterial) {
+            let geometry = SCNBox(width: width, height: height, length: depth, chamferRadius: 0.045)
+            geometry.firstMaterial = surface
+            let node = SCNNode(geometry: geometry)
+            node.position = SCNVector3(x, y, z)
+            node.castsShadow = false
+            cinematicDetails.addChildNode(node)
+        }
+        // Roadside objects stay beyond the 12m road half-width and cannot
+        // obstruct the collision/traffic grid. Instances share material data.
+        for road in stride(from: -450, through: 450, by: 150) {
+            for segment in stride(from: -375, through: 375, by: 75) {
+                let x = Float(road) + 15.8
+                let z = Float(segment)
+                box(2.5, 0.18, 1.5, x, 0.20, z, pavement)
+                box(0.12, 2.3, 0.12, x, 1.4, z, metal)
+                box(1.55, 0.85, 0.16, x, 2.85, z, glass)
+                box(1.7, 0.09, 0.21, x, 3.31, z, metal)
+                box(1.7, 0.09, 0.21, x, 2.39, z, metal)
+                for offset in [-1.0, 1.0] {
+                    box(0.16, 0.24, 0.16, x + Float(offset), 0.29, z, metal)
+                }
+                // Painted lane-side reflector at each block approach.
+                box(0.12, 0.012, 1.4, Float(road) + 10.6, 0.082,
+                    z + 14, painted)
+            }
         }
     }
 
