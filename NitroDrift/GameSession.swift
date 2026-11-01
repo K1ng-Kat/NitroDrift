@@ -182,7 +182,7 @@ final class GameSession: ObservableObject {
         wins = s.integer(forKey: "wins")
         bestCircuitTime = s.double(forKey: "bestCircuitTime")
         handlingAssist = s.object(forKey: "handlingAssist") as? Bool ?? true
-        easyDrive = s.object(forKey: "easyDrive") as? Bool ?? true
+        easyDrive = s.object(forKey: "easyDrive") as? Bool ?? false
     }
 
     func start(_ selection: DriveMode) {
