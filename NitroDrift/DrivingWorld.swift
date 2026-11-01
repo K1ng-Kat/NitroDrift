@@ -41,6 +41,7 @@ final class DrivingWorld {
     private var directionalLight: SCNLight?
     private var ambientLight: SCNLight?
     private var displayedTimeOfDay: StreetTimeOfDay?
+    private var usingAuthoredCity = false
 
     init() {
         createEnvironment()
@@ -502,8 +503,9 @@ final class DrivingWorld {
                             width: CGFloat(width), height: CGFloat(height),
                             depth: CGFloat(depth), index: style)
                         building.position = SCNVector3(Float(x), Float(height / 2), Float(z))
-                        scene.rootNode.addChildNode(building)
+                        if !usingAuthoredCity { scene.rootNode.addChildNode(building) }
 
+                        if usingAuthoredCity { continue }
                         // Ground-floor glass frontage, with believable
                         // night-lit interiors instead of vertical neon tubes.
                         let entranceSide = (x > 0 ? -1.0 : 1.0)
@@ -537,6 +539,10 @@ final class DrivingWorld {
                 }
             }
         }
+
+        // Author-supplied CityBlock.usdz replaces blocky building silhouettes
+        // without touching the collision grid or the mobile driving controls.
+        usingAuthoredCity = AuthoredCity.install(in: scene)
 
         // Foreground foliage and planters add depth, scale and silhouettes.
         let trunks = material(UIColor(red: 0.23, green: 0.17, blue: 0.13, alpha: 1), roughness: 0.95)
