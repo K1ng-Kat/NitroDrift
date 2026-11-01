@@ -43,7 +43,7 @@ jobs:
           PY
       - name: Physics smoke tests
         run: |
-          swiftc NitroDrift/CarDynamics.swift scripts/PhysicsSmokeTest.swift -o "$RUNNER_TEMP/physics-smoke"
+          swiftc NitroDrift/Gameplay/CarDynamics.swift scripts/PhysicsSmokeTest.swift -o "$RUNNER_TEMP/physics-smoke"
           "$RUNNER_TEMP/physics-smoke"
       - name: Build for iOS Simulator
         run: |

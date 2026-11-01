@@ -1,5 +1,19 @@
 # NitroDrift 🏎️
 
+## Xcode project organization
+
+The app uses Xcode's file-system-synchronized `NitroDrift` group, so these are real folders that appear automatically in the Project Navigator. Swift source is organized as:
+
+- **App** — launch and root navigation.
+- **Gameplay** — game state, driving simulation, inputs, multiplayer.
+- **World** — city geometry, scenery, signals, weather and roads.
+- **Vehicles** — car models, generated geometry and asset loading.
+- **Rendering** — SceneKit view, tire effects, water and Metal shader.
+- **UI** — heads-up display, minimap and shared SwiftUI components.
+- **Audio** — game sound playback.
+
+`Assets.scnassets` and `Assets.xcassets` remain at the app root, so resource paths are unchanged. The iOS CI physics-test path has been updated for the moved file. No Swift implementation was changed during this reorganization.
+
 ## Alpha 0.9 groundwork — authored city-block scene support
 
 - Added an optional `Assets.scnassets/City/CityBlock.usdz` (or `.scn`) importer. It instances a 150 m Y-up environment tile across 36 city blocks and removes procedural building meshes **only when** a valid tile is present.
