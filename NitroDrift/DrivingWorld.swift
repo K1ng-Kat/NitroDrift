@@ -43,6 +43,7 @@ final class DrivingWorld {
     private var displayedTimeOfDay: StreetTimeOfDay?
     private var usingAuthoredCity = false
     private let cinematicDetails = SCNNode()
+    private var cinematicFixtures: [SCNNode] = []
 
     init() {
         createEnvironment()
@@ -181,6 +182,7 @@ final class DrivingWorld {
         directionalLight?.orthographicScale = 120
         directionalLight?.zFar = 260
         cinematicDetails.isHidden = quality == .balanced
+        for fixture in cinematicFixtures { fixture.isHidden = !ultra }
     }
 
     private func resetCar() {
@@ -666,6 +668,13 @@ final class DrivingWorld {
                 for offset in [-1.0, 1.0] {
                     box(0.16, 0.24, 0.16, x + Float(offset), 0.29, z, metal)
                 }
+                // A sheltered, illuminated transit kiosk in Ultra mode.
+                let roof = SCNNode(geometry: SCNBox(width: 2.8, height: 0.13, length: 1.7, chamferRadius: 0.09))
+                roof.geometry?.firstMaterial = metal
+                roof.position = SCNVector3(x, 3.48, z)
+                roof.castsShadow = false
+                cinematicDetails.addChildNode(roof)
+                cinematicFixtures.append(roof)
                 // Painted lane-side reflector at each block approach.
                 box(0.12, 0.012, 1.4, Float(road) + 10.6, 0.082,
                     z + 14, painted)
