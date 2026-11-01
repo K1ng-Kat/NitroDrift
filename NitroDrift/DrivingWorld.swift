@@ -44,12 +44,16 @@ final class DrivingWorld {
     private var usingAuthoredCity = false
     private let cinematicDetails = SCNNode()
     private var cinematicFixtures: [SCNNode] = []
+    private let distantCity = SCNNode()
 
     init() {
         createEnvironment()
         cinematicDetails.name = "cinematic-streetscape"
         scene.rootNode.addChildNode(cinematicDetails)
         buildCinematicDetails()
+        distantCity.name = "distant-skyline"
+        scene.rootNode.addChildNode(distantCity)
+        buildDistantSkyline()
         createCar()
         createCamera()
         makeGhost()
@@ -182,6 +186,7 @@ final class DrivingWorld {
         directionalLight?.orthographicScale = 120
         directionalLight?.zFar = 260
         cinematicDetails.isHidden = quality == .balanced
+        distantCity.isHidden = quality == .balanced
         for fixture in cinematicFixtures { fixture.isHidden = !ultra }
     }
 
@@ -678,6 +683,41 @@ final class DrivingWorld {
                 // Painted lane-side reflector at each block approach.
                 box(0.12, 0.012, 1.4, Float(road) + 10.6, 0.082,
                     z + 14, painted)
+            }
+        }
+    }
+
+    private func buildDistantSkyline() {
+        // Distant skyline silhouettes add depth beyond the drivable grid.
+        // Shared meshes/materials keep the extra draw cost bounded.
+        let silhouettes: [SCNMaterial] = (0..<4).map { index in
+            let mat = material(UIColor(red: 0.10 + CGFloat(index) * 0.018,
+                                       green: 0.13 + CGFloat(index) * 0.018,
+                                       blue: 0.18 + CGFloat(index) * 0.018,
+                                       alpha: 1), roughness: 0.85)
+            mat.lightingModel = .physicallyBased
+            return mat
+        }
+        var seed: UInt64 = 0x71D1F7
+        func next(_ limit: Int) -> Int {
+            seed = 2862933555777941757 &* seed &+ 3037000493
+            return Int((seed >> 33) % UInt64(limit))
+        }
+        for side in 0..<4 {
+            for index in 0..<34 {
+                let height = CGFloat(35 + next(95))
+                let width = CGFloat(14 + next(24))
+                let depth = CGFloat(17 + next(25))
+                let mesh = SCNBox(width: width, height: height, length: depth, chamferRadius: 0.3)
+                mesh.firstMaterial = silhouettes[next(silhouettes.count)]
+                let node = SCNNode(geometry: mesh)
+                let axis = Float(-510 + index * 31)
+                let edge: Float = side.isMultiple(of: 2) ? -565 : 565
+                node.position = side < 2
+                    ? SCNVector3(axis, Float(height / 2), edge)
+                    : SCNVector3(edge, Float(height / 2), axis)
+                node.castsShadow = false
+                distantCity.addChildNode(node)
             }
         }
     }
