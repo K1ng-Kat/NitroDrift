@@ -501,6 +501,9 @@ final class DrivingWorld {
         entryGlass.metalness.contents = 0.22
         let warmLight = glowMaterial(UIColor(red: 1.0, green: 0.74, blue: 0.43, alpha: 1), intensity: 0.85)
 
+        // Install the authored tile BEFORE procedural construction, so it truly replaces it.
+        usingAuthoredCity = AuthoredCity.install(in: scene)
+
         for xCell in [-375.0, -225, -75, 75, 225, 375] {
             for zCell in [-375.0, -225, -75, 75, 225, 375] {
                 for offsetX in [-26.0, 26.0] {
@@ -554,7 +557,6 @@ final class DrivingWorld {
 
         // Author-supplied CityBlock.usdz replaces blocky building silhouettes
         // without touching the collision grid or the mobile driving controls.
-        usingAuthoredCity = AuthoredCity.install(in: scene)
 
         // Foreground foliage and planters add depth, scale and silhouettes.
         let trunks = material(UIColor(red: 0.23, green: 0.17, blue: 0.13, alpha: 1), roughness: 0.95)
