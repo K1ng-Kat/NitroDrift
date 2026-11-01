@@ -1,5 +1,12 @@
 # NitroDrift 🏎️
 
+## Alpha 0.9 groundwork — authored city-block scene support
+
+- Added an optional `Assets.scnassets/City/CityBlock.usdz` (or `.scn`) importer. It instances a 150 m Y-up environment tile across 36 city blocks and removes procedural building meshes **only when** a valid tile is present.
+- Keeps the existing roads, intersection layout, curbs, physics, minimap and driving controls unchanged; an absent or unreadable tile falls back to the original procedural city.
+- See `NitroDrift/Assets.scnassets/City/README.md` for asset scale, clearances and performance limitations.
+- **Not a completed Asphalt-class visual overhaul:** no licensed photorealistic city tile has been added, and there has been no custom Metal renderer migration or real-device validation.
+
 Native **3D street-racing game prototype** for iPhone and iPad, made with SwiftUI + SceneKit + GameKit + AVFoundation. iOS 17+.
 
 ## Alpha 0.8 — stable braking, easy mobile controls and brighter graphics
