@@ -6,6 +6,9 @@ import SceneKit
 /// All art is generated in code, so the first build needs no external assets.
 final class DrivingWorld {
     let scene = SCNScene()
+    var residentRoads: Int { roadSurfaces.activeCount }
+    var hasStreamableRoads: Bool { roadSurfaces.available }
+    private lazy var roadSurfaces = RoadSurfaceStream(scene: scene)
     private lazy var streets = StreetSystems(scene: scene)
     private lazy var tireTrails = TireTrails(scene: scene)
     private let tireSpray = TireSpray()
@@ -91,6 +94,7 @@ final class DrivingWorld {
         if displayedTimeOfDay != session.timeOfDay {
             configureTimeOfDay(session.timeOfDay)
         }
+        roadSurfaces.update(x: positionX, z: positionZ, quality: session.graphicsQuality, raining: session.weather == .rain)
         weatherFX.update(x: positionX, z: positionZ)
 
         if lastResetToken != session.resetToken {

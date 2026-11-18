@@ -8,6 +8,11 @@ final class MetalRaceView: MTKView, MTKViewDelegate {
     private let commands: MTLCommandQueue
     private var activeQuality: GraphicsQuality?
     private var refraction = false
+    #if DEBUG
+    private let capture = SimulatorCapture()
+    private weak var captureWorld: DrivingWorld?
+    private weak var captureSession: GameSession?
+    #endif
     private var frameTime: CFTimeInterval = 0
 
     init?(world: DrivingWorld) {
@@ -16,6 +21,9 @@ final class MetalRaceView: MTKView, MTKViewDelegate {
         commands = queue
         sceneRenderer = SCNRenderer(device: gpu, options: nil)
         super.init(frame: .zero, device: gpu)
+        #if DEBUG
+        captureWorld = world
+        #endif
         sceneRenderer.scene = world.scene
         sceneRenderer.pointOfView = world.pointOfView
         sceneRenderer.autoenablesDefaultLighting = false
@@ -33,6 +41,9 @@ final class MetalRaceView: MTKView, MTKViewDelegate {
     required init(coder: NSCoder) { fatalError("init(coder:) is unavailable") }
 
     func configure(_ session: GameSession) {
+        #if DEBUG
+        captureSession = session
+        #endif
         if activeQuality != session.graphicsQuality {
             activeQuality = session.graphicsQuality
             let requested = session.graphicsQuality == .balanced ? 2 : 4
@@ -78,6 +89,9 @@ final class MetalRaceView: MTKView, MTKViewDelegate {
         sceneRenderer.render(atTime: frameTime,
                              viewport: CGRect(origin: .zero, size: drawableSize),
                              commandBuffer: buffer, passDescriptor: pass)
+        #if DEBUG
+        capture.record(buffer, time: frameTime, world: captureWorld, session: captureSession)
+        #endif
         buffer.present(drawable)
         buffer.commit()
     }
