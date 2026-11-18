@@ -6,6 +6,8 @@ import SwiftUI
 struct DrivingHUD: View {
     @ObservedObject var session: GameSession
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         GeometryReader { geo in
             let compact = geo.size.width < 790
@@ -16,6 +18,12 @@ struct DrivingHUD: View {
             let edge: CGFloat = narrow ? 8 : compact ? 12 : 23
             let spacing: CGFloat = narrow ? 5 : 9
             ZStack {
+                if session.isBoosting && !reduceMotion && !session.isPaused {
+                    SpeedLines(intensity: min(1, Double(session.speedKPH) / 190), boosting: true)
+                        .ignoresSafeArea()
+                        .allowsHitTesting(false)
+                }
+
                 VStack(spacing: 4) {
                     topHUD(compact: compact)
                     Spacer(minLength: 6)
@@ -41,25 +49,6 @@ struct DrivingHUD: View {
                                 .tracking(0.8)
                                 .foregroundStyle(.white.opacity(0.65))
                         }
-
-                        Spacer(minLength: 2)
-
-                        VStack(spacing: 0) {
-                            Text("\(session.speedKPH)")
-                                .font(.system(size: compact ? 31 : 47,
-                                              weight: .black, design: .rounded))
-                                .monospacedDigit()
-                                .contentTransition(.numericText())
-                            Text("KM/H  G\(session.gear)")
-                                .font(.system(size: 9, weight: .heavy, design: .monospaced))
-                                .foregroundStyle(.white.opacity(0.75))
-                            Text("\(session.engineRPM) RPM")
-                                .font(.system(size: 8, weight: .medium, design: .monospaced))
-                                .foregroundStyle(.white.opacity(0.54))
-                        }
-                        .frame(width: narrow ? 78 : compact ? 98 : 120)
-                        .padding(.bottom, 5)
-                        .allowsHitTesting(false)
 
                         Spacer(minLength: 2)
 
@@ -139,6 +128,7 @@ struct DrivingHUD: View {
                         .frame(width: 224)
                     }
                 }
+
             }
             .frame(width: geo.size.width, height: geo.size.height)
         }
@@ -148,45 +138,43 @@ struct DrivingHUD: View {
         HStack(spacing: compact ? 7 : 11) {
             actionIcon("pause.fill", accessibility: "Pause") { session.togglePause() }
 
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: 0) {
+                Text((session.mode == .circuit || session.mode == .online) ? "\(session.racePosition)/2 POS" : session.mode.rawValue.uppercased())
+                    .font(.system(size: compact ? 12 : 16, weight: .black, design: .rounded))
+                    .foregroundStyle(.white)
                 Text(session.district + (session.weather == .rain ? " · RAIN" : ""))
-                    .font(.system(size: compact ? 9 : 12, weight: .heavy, design: .monospaced))
+                    .font(.system(size: compact ? 8 : 10, weight: .heavy, design: .monospaced))
                     .foregroundStyle(NitroTheme.cyan)
-                HStack(spacing: 8) {
-                    Text("\(session.cash) CR")
-                    Text("·")
-                    Text("\(session.driftScore) DRIFT")
-                }
-                .font(.system(size: compact ? 9 : 11, weight: .semibold, design: .monospaced))
-                .foregroundStyle(.white.opacity(0.82))
             }
-            .lineLimit(1)
-            .minimumScaleFactor(0.75)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
-            .background(.black.opacity(0.65), in: RoundedRectangle(cornerRadius: 9))
+            .padding(.horizontal, 7)
 
             Spacer(minLength: 2)
 
-            MiniMapView(session: session)
-                .frame(width: compact ? 58 : 78, height: compact ? 58 : 78)
-                .allowsHitTesting(false)
+            SpeedReadout(session: session, compact: compact)
 
-            if session.mode != .freeRide {
-                VStack(alignment: .trailing, spacing: 1) {
+            Spacer(minLength: 2)
+
+            VStack(alignment: .trailing, spacing: 1) {
+                if session.mode != .freeRide {
                     Text(String(format: "%.1f SEC", session.sprintTime))
-                        .font(.system(size: compact ? 15 : 22, weight: .black, design: .monospaced))
+                        .font(.system(size: compact ? 13 : 18, weight: .black, design: .monospaced))
                         .foregroundStyle(session.sprintTime < 15 ? NitroTheme.orange : .white)
-                    Text(detail)
-                        .font(.system(size: compact ? 9 : 11, weight: .bold, design: .monospaced))
-                        .foregroundStyle(.white.opacity(0.8))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.6)
+                } else {
+                    Text("\(session.cash) CR")
+                        .font(.system(size: compact ? 11 : 14, weight: .black, design: .monospaced))
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(.black.opacity(0.68), in: RoundedRectangle(cornerRadius: 9))
+                Text(session.mode == .freeRide ? "NITRO DRIFT" : detail)
+                    .font(.system(size: compact ? 8 : 10, weight: .bold, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.78))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
             }
+            .padding(.horizontal, 7)
+
+            MiniMapView(session: session)
+                .frame(width: compact ? 44 : 58, height: compact ? 44 : 58)
+                .opacity(0.84)
+                .allowsHitTesting(false)
 
             actionIcon("camera.rotate.fill", accessibility: "Change camera") { session.cycleCamera() }
             actionIcon("arrow.counterclockwise", accessibility: "Reset car") { session.resetCar() }
@@ -214,5 +202,83 @@ struct DrivingHUD: View {
         }
         .buttonStyle(NitroPressStyle())
         .accessibilityLabel(accessibility)
+    }
+}
+
+/// Lightweight animated peripheral streaks. It is intentionally a SwiftUI
+/// overlay so the effect scales cleanly across iPhone and iPad without adding
+/// another SceneKit render pass or affecting collision/input handling.
+private struct SpeedLines: View {
+    let intensity: Double
+    let boosting: Bool
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
+            Canvas { canvas, size in
+                guard intensity > 0.01 else { return }
+                let t = context.date.timeIntervalSinceReferenceDate
+                let count = 18
+                for index in 0..<count {
+                    let seed = Double(index) * 17.31
+                    let side = index.isMultiple(of: 2) ? 1.0 : -1.0
+                    let y = (sin(t * (0.32 + intensity * 0.8) + seed) * 0.5 + 0.5) * size.height
+                    let edgeX = side > 0 ? size.width * 0.73 : size.width * 0.27
+                    let length = (24 + CGFloat((index * 19) % 55)) * CGFloat(intensity)
+                    let start = CGPoint(x: edgeX, y: y)
+                    let end = CGPoint(x: edgeX + CGFloat(side) * length, y: y + CGFloat((index % 3) - 1) * 5)
+                    var path = Path()
+                    path.move(to: start)
+                    path.addLine(to: end)
+                    canvas.stroke(path,
+                                  with: .color((boosting ? NitroTheme.orange : NitroTheme.cyan)
+                                    .opacity(0.06 + intensity * 0.11)),
+                                  lineWidth: boosting ? 2.0 : 1.15)
+                }
+            }
+        }
+        .blendMode(.screen)
+    }
+}
+
+private struct SpeedReadout: View {
+    @ObservedObject var session: GameSession
+    let compact: Bool
+
+    var body: some View {
+        ZStack {
+            ArcGauge(progress: min(1, CGFloat(session.speedKPH) / 260),
+                     color: session.isBoosting ? NitroTheme.orange : NitroTheme.cyan)
+                .frame(width: compact ? 112 : 156, height: compact ? 52 : 70)
+            HStack(alignment: .lastTextBaseline, spacing: 4) {
+                Text("\(session.speedKPH)")
+                    .font(.system(size: compact ? 27 : 41, weight: .black, design: .rounded))
+                    .monospacedDigit()
+                Text("KM/H")
+                    .font(.system(size: compact ? 8 : 10, weight: .black, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.78))
+            }
+            .padding(.top, compact ? 8 : 12)
+        }
+        .frame(width: compact ? 122 : 170)
+        .allowsHitTesting(false)
+    }
+}
+
+private struct ArcGauge: View {
+    var progress: CGFloat
+    var color: Color
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .trim(from: 0.60, to: 0.90)
+                .stroke(.white.opacity(0.18), style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                .rotationEffect(.degrees(12))
+            Circle()
+                .trim(from: 0.60, to: 0.60 + 0.30 * progress)
+                .stroke(color, style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                .rotationEffect(.degrees(12))
+                .shadow(color: color.opacity(0.62), radius: 8)
+        }
     }
 }

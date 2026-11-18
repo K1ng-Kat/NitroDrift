@@ -11,60 +11,36 @@ struct GameSceneView: UIViewRepresentable {
         Coordinator(session: session)
     }
 
-    func makeUIView(context: Context) -> SCNView {
-        let view = SCNView(frame: .zero)
-        view.scene = context.coordinator.world.scene
-        view.pointOfView = context.coordinator.world.pointOfView
-        view.backgroundColor = UIColor(red: 0.01, green: 0.02, blue: 0.04, alpha: 1)
-        view.autoenablesDefaultLighting = false
-        view.allowsCameraControl = false
-        view.antialiasingMode = session.graphicsQuality == .balanced ? .multisampling2X : .multisampling4X
-        view.preferredFramesPerSecond = 60
-        view.rendersContinuously = true
-        view.isJitteringEnabled = session.graphicsQuality == .ultra
-        view.isPlaying = true
+    func makeUIView(context: Context) -> UIView {
+        if let view = MetalRaceView(world: context.coordinator.world) {
+            context.coordinator.metalView = view
+            view.configure(session)
+            context.coordinator.start()
+            return view
+        }
+        // Keep the app usable if the device cannot initialize Metal resources.
+        let fallback = SCNView(frame: .zero)
+        fallback.scene = context.coordinator.world.scene
+        fallback.pointOfView = context.coordinator.world.pointOfView
+        fallback.isPlaying = true
         context.coordinator.start()
-        return view
+        return fallback
     }
 
-    func updateUIView(_ uiView: SCNView, context: Context) {
-        // HUD state updates frequently: don't reset the renderer AA mode
-        // unless the player actually changed the graphics preset.
-        let desired: SCNAntialiasingMode = session.graphicsQuality == .balanced
-            ? .multisampling2X : .multisampling4X
-        if uiView.antialiasingMode != desired {
-            uiView.antialiasingMode = desired
-        }
-        uiView.isJitteringEnabled = session.graphicsQuality == .ultra
-        let useRefraction = session.graphicsQuality == .ultra
-            && session.weather == .rain
-            && session.screenRefractionEnabled
-        if context.coordinator.refractionActive != useRefraction {
-            if useRefraction {
-                if context.coordinator.refractionTechnique == nil {
-                    context.coordinator.refractionTechnique = ScreenSpaceWater.makeTechnique()
-                }
-                uiView.technique = context.coordinator.refractionTechnique
-                context.coordinator.refractionActive = uiView.technique != nil
-            } else {
-                uiView.technique = nil
-                context.coordinator.refractionActive = false
-            }
-        }
+    func updateUIView(_ uiView: UIView, context: Context) {
+        (uiView as? MetalRaceView)?.configure(session)
     }
 
-    static func dismantleUIView(_ uiView: SCNView, coordinator: Coordinator) {
+    static func dismantleUIView(_ uiView: UIView, coordinator: Coordinator) {
         coordinator.stop()
-        uiView.technique = nil
-        uiView.isPlaying = false
+        (uiView as? SCNView)?.isPlaying = false
     }
 
     final class Coordinator: NSObject {
         let session: GameSession
         let world = DrivingWorld()
         private let gamepad = RacingGamepad()
-        var refractionTechnique: SCNTechnique?
-        var refractionActive = false
+        weak var metalView: MetalRaceView?
         private var displayLink: CADisplayLink?
         private var previousTimestamp: CFTimeInterval = 0
 
@@ -87,9 +63,15 @@ struct GameSceneView: UIViewRepresentable {
         @objc private func tick(_ display: CADisplayLink) {
             let dt = previousTimestamp > 0 ? display.timestamp - previousTimestamp : 1.0 / 60.0
             previousTimestamp = display.timestamp
+            guard UIApplication.shared.applicationState == .active else {
+                previousTimestamp = 0
+                session.input.clear()
+                return
+            }
             gamepad.poll(session)
             world.advance(dt, session: session)
-            AudioDirector.shared.update(speed: session.speedKPH, rpm: session.engineRPM, boosting: session.input.nitro,
+            metalView?.renderFrame(at: display.timestamp)
+            AudioDirector.shared.update(speed: session.speedKPH, rpm: session.engineRPM, boosting: session.isBoosting,
                                         running: session.phase == .driving && !session.isPaused,
                                         soundEnabled: session.soundEnabled,
                                         musicEnabled: session.musicEnabled)

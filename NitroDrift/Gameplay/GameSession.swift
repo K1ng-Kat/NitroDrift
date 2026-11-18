@@ -114,6 +114,7 @@ final class GameSession: ObservableObject {
     @Published var lateralG = 0.0
     @Published var tireGrip = 0.0
     @Published var nitro = 100.0
+    @Published var isBoosting = false
     @Published var driftScore = 0
     @Published var cash: Int
     @Published var engineLevel: Int
@@ -161,7 +162,9 @@ final class GameSession: ObservableObject {
 
     init() {
         let s = UserDefaults.standard
-        timeOfDay = StreetTimeOfDay(rawValue: s.string(forKey: "streetTimeOfDay") ?? "") ?? .sunset
+        // The primary driving presentation is a bright, clean daytime racer.
+        // Players can still switch to Golden Hour or Night in Settings.
+        timeOfDay = StreetTimeOfDay(rawValue: s.string(forKey: "streetTimeOfDay") ?? "") ?? .day
         weather = StreetWeatherMode(rawValue: s.string(forKey: "streetWeather") ?? "") ?? .dry
         graphicsQuality = GraphicsQuality(rawValue: s.string(forKey: "graphicsQuality") ?? "") ?? (ProcessInfo.processInfo.physicalMemory >= 4_000_000_000 ? .cinematic : .balanced)
         screenRefractionEnabled = s.object(forKey: "screenRefractionEnabled") as? Bool ?? true
@@ -196,6 +199,7 @@ final class GameSession: ObservableObject {
         lateralG = 0
         tireGrip = 0
         nitro = 100
+        isBoosting = false
         driftScore = 0
         raceCheckpoint = 0
         raceCheckpointTotal = 0

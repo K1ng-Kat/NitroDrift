@@ -73,6 +73,14 @@ do not prove real-device touch usability or performance. Test on a real
 iPhone in both Easy Drive and Manual modes and report any remaining
 broken/overlapping controls.
 
+## Alpha 0.9 — high-speed presentation pass
+
+- Added adaptive peripheral speed streaks and a readable TOP SPEED / MAX BOOST callout that never intercepts driving touches.
+- Ultra and Cinematic modes now add restrained camera motion blur, stronger clear-coat paint response, and a reactive boost light under the car.
+- Chase camera now widens during nitro and adds a subtle grip-aware roll so speed and cornering feel more physical without making the horizon uncomfortable.
+- Reframed the primary drive as a bright daylight presentation, added a closer centered chase camera, a designed bridge portal landmark, palm-lined boulevard silhouettes, and clearer white/yellow lane markings.
+- The driving HUD now uses a centered speed arc, race-position readout, lap/timer space, and a smaller non-blocking minimap.
+
 ## Alpha 0.7 — visual design and car orientation overhaul
 
 This release responds to real gameplay feedback that the world looked ugly and the

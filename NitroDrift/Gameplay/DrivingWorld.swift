@@ -36,10 +36,12 @@ final class DrivingWorld {
     private var displayedPaint: CarPaint = .electricBlue
     private var displayedStyle: CarStyle = .street
     private var cameraLookTarget = SCNVector3(0, 1.1, 28)
+    private var cameraAnchor: SCNVector3?
     private var impactShake = 0.0
     private var currentQuality: GraphicsQuality?
     private var directionalLight: SCNLight?
     private var ambientLight: SCNLight?
+    private var nitroLight: SCNLight?
     private var displayedTimeOfDay: StreetTimeOfDay?
     private var usingAuthoredCity = false
     private let cinematicDetails = SCNNode()
@@ -115,7 +117,9 @@ final class DrivingWorld {
         if session.phase == .driving && !session.isPaused {
             simulate(delta, session: session)
         } else {
+            if session.isBoosting { session.isBoosting = false }
             nitroFlames.forEach { $0.isHidden = true }
+            nitroLight?.intensity = 0
             tireSpray.update(wet: false, speed: 0, quality: session.graphicsQuality)
         }
 
@@ -144,7 +148,7 @@ final class DrivingWorld {
             directionalLight?.color = UIColor(red: 1, green: 0.94, blue: 0.82, alpha: 1)
             scene.lightingEnvironment.intensity = 1.9
             scene.fogColor = UIColor(red: 0.54, green: 0.68, blue: 0.78, alpha: 1)
-            camera.camera?.exposureOffset = -0.12
+            camera.camera?.exposureOffset = 0.18
         case .sunset:
             ambientLight?.intensity = 720
             ambientLight?.color = UIColor(red: 0.81, green: 0.70, blue: 0.78, alpha: 1)
@@ -173,6 +177,7 @@ final class DrivingWorld {
         let ultra = quality == .ultra
         camera.camera?.wantsHDR = cinematic
         camera.camera?.bloomIntensity = ultra ? 0.34 : cinematic ? 0.24 : 0
+        camera.camera?.motionBlurIntensity = UIAccessibility.isReduceMotionEnabled ? 0 : ultra ? 0.16 : cinematic ? 0.08 : 0
         camera.camera?.vignettingIntensity = cinematic ? 0.26 : 0
         camera.camera?.screenSpaceAmbientOcclusionIntensity = ultra ? 0.47 : cinematic ? 0.32 : 0
         directionalLight?.castsShadow = cinematic
@@ -191,6 +196,7 @@ final class DrivingWorld {
     }
 
     private func resetCar() {
+        cameraAnchor = nil
         dynamics.reset()
         positionX = dynamics.x
         positionZ = dynamics.z
@@ -213,6 +219,7 @@ final class DrivingWorld {
             input.gas = true
         }
         let canNitro = (input.nitro || input.gamepadNitro) && (input.gas || input.analogThrottle > 0.15) && currentNitro > 0.4 && velocity > 2
+        if canNitro != session.isBoosting { session.isBoosting = canNitro }
         let meterDrain = max(12, 23 - Double(session.nitroLevel) * 1.8)
         currentNitro = min(100, max(0, currentNitro + (canNitro ? -meterDrain : 6.5) * dt))
 
@@ -278,6 +285,9 @@ final class DrivingWorld {
             if canNitro {
                 flame.scale = SCNVector3(1, Float(0.85 + 0.17 * sin(elapsed * 27 + Double(index))), 1)
             }
+        }
+        if let nitroLight {
+            nitroLight.intensity = canNitro ? (session.graphicsQuality == .ultra ? 780 : 460) : 0
         }
 
         let slip = abs(frame.slipAngle)
@@ -347,13 +357,16 @@ final class DrivingWorld {
                 targetX += forwardX * 9
                 targetZ += forwardZ * 9
             default: // chase
-                let trailingDistance = 6.5 + min(2.7, velocity * 0.045)
+                // Close, centered chase framing keeps the car visually present
+                // like a premium mobile racer instead of leaving it tiny at
+                // the bottom of a wide procedural map.
+                let trailingDistance = 5.55 + min(0.40, velocity * 0.010)
                 desiredX = positionX - forwardX * trailingDistance
-                desiredY = 2.45 + min(0.72, velocity * 0.014)
+                desiredY = 2.03 + min(0.20, velocity * 0.005)
                 desiredZ = positionZ - forwardZ * trailingDistance
-                targetX += forwardX * 10
-                targetY = 1.25
-                targetZ += forwardZ * 10
+                targetX += forwardX * 13
+                targetY = 1.18
+                targetZ += forwardZ * 13
                 let anticipate = max(-2.5, min(2.5, dynamics.yawRate * 2.2))
                 targetX += cos(heading) * anticipate
                 targetZ += sin(heading) * anticipate
@@ -372,25 +385,55 @@ final class DrivingWorld {
         }
 
         // Narrow enough for readable corners, wider with speed for depth cues.
-        let desiredFOV = session.phase == .driving ? 61.0 + min(10.0, velocity * 0.20) : 57.0
+        let boosting = session.isBoosting && !UIAccessibility.isReduceMotionEnabled
+        let boostFOV = boosting && velocity > 2 ? 6.0 : 0.0
+        let desiredFOV = session.phase == .driving
+            ? 52.0 + min(6.0, velocity * 0.12) + boostFOV : 55.0
         let oldFOV = Double(camera.camera?.fieldOfView ?? 68.0)
         camera.camera?.fieldOfView = CGFloat(oldFOV + (desiredFOV - oldFOV) * min(1, dt * 3.4))
 
         impactShake *= exp(-dt * 10.0)
         if session.phase == .driving {
             desiredY += sin(elapsed * 47) * impactShake * 0.17
+            if boosting {
+                desiredY += sin(elapsed * 42) * 0.018
+            }
         }
-        let targetLerp = Float(1 - exp(-dt * 4.2))
+        let anchor = SCNVector3(Float(positionX), 0, Float(positionZ))
+        if session.phase == .driving {
+            if let previous = cameraAnchor {
+                // Smooth yaw and suspension in car space. Following world-space
+                // translation with a spring makes the car shrink at race speed.
+                let dx = anchor.x - previous.x, dz = anchor.z - previous.z
+                camera.position.x += dx
+                camera.position.z += dz
+                cameraLookTarget.x += dx
+                cameraLookTarget.z += dz
+            } else {
+                camera.position = SCNVector3(Float(desiredX), Float(desiredY), Float(desiredZ))
+                cameraLookTarget = SCNVector3(Float(targetX), Float(targetY), Float(targetZ))
+            }
+            cameraAnchor = anchor
+        } else {
+            cameraAnchor = nil
+        }
+        let targetLerp = Float(1 - exp(-dt * 7))
         cameraLookTarget.x += (Float(targetX) - cameraLookTarget.x) * targetLerp
         cameraLookTarget.y += (Float(targetY) - cameraLookTarget.y) * targetLerp
         cameraLookTarget.z += (Float(targetZ) - cameraLookTarget.z) * targetLerp
-        let lerp = Float(min(1, dt * 5))
+        let lerp = Float(1 - exp(-dt * 8.5))
         camera.position = SCNVector3(
             camera.position.x + (Float(desiredX) - camera.position.x) * lerp,
             camera.position.y + (Float(desiredY) - camera.position.y) * lerp,
             camera.position.z + (Float(desiredZ) - camera.position.z) * lerp
         )
         camera.look(at: cameraLookTarget)
+        if session.phase == .driving && session.cameraMode == 0 {
+            let roll = max(-0.032, min(0.032, dynamics.yawRate * 0.035))
+            camera.eulerAngles.z = Float(roll)
+        } else {
+            camera.eulerAngles.z = 0
+        }
     }
 
     private func createEnvironment() {
@@ -435,7 +478,8 @@ final class DrivingWorld {
         let asphaltNS = CityVisuals.roadMaterial()
         let asphaltEW = CityVisuals.roadMaterial(horizontal: true)
         asphaltMaterials = [asphaltNS, asphaltEW]
-        let roadLines = material(UIColor(red: 0.72, green: 0.66, blue: 0.45, alpha: 1), roughness: 0.64)
+        let roadLines = material(UIColor(red: 0.94, green: 0.95, blue: 0.91, alpha: 1), roughness: 0.64)
+        let centerLines = material(UIColor(red: 0.98, green: 0.73, blue: 0.18, alpha: 1), roughness: 0.58)
 
         for coordinate in stride(from: -450, through: 450, by: 150) {
             addBox(width: 24, height: 0.08, length: 1040,
@@ -451,6 +495,10 @@ final class DrivingWorld {
                 addBox(width: 6.0, height: 0.012, length: 0.20,
                        at: SCNVector3(Float(marker), 0.078, Float(coordinate)), material: roadLines)
             }
+            addBox(width: 0.16, height: 0.014, length: 1040,
+                   at: SCNVector3(Float(coordinate) - 4.2, 0.081, 0), material: centerLines)
+            addBox(width: 1040, height: 0.014, length: 0.16,
+                   at: SCNVector3(0, 0.082, Float(coordinate) - 4.2), material: centerLines)
         }
 
         // Raised sidewalks along blocks, leaving intersections open.
@@ -588,6 +636,72 @@ final class DrivingWorld {
                 addStreetLight(x: Double(x) + 14.5, z: Double(z) + 14.5)
                 addStreetLight(x: Double(x) - 14.5, z: Double(z) - 14.5)
             }
+        }
+
+        createHeroBoulevard()
+    }
+
+    /// A readable landmark gives the first stretch of road a designed race
+    /// identity instead of asking the player to drive through a grid of boxes.
+    /// It is intentionally built from a small number of beveled primitives so
+    /// it remains fast on iPhone and iPad while giving the camera a strong
+    /// focal point like a premium mobile racer.
+    private func createHeroBoulevard() {
+        let stone = material(UIColor(red: 0.72, green: 0.75, blue: 0.76, alpha: 1), roughness: 0.46)
+        let trim = material(UIColor(red: 0.23, green: 0.30, blue: 0.37, alpha: 1), roughness: 0.25)
+        trim.metalness.contents = 0.58
+        let glass = material(UIColor(red: 0.16, green: 0.45, blue: 0.68, alpha: 0.56), roughness: 0.10)
+        glass.metalness.contents = 0.22
+        let cyan = glowMaterial(UIColor(red: 0.12, green: 0.76, blue: 1, alpha: 1), intensity: 1.25)
+
+        // A bridge portal sits ahead of the start line, aligned with the road.
+        for side in [-1.0, 1.0] {
+            addBox(width: 3.0, height: 15.5, length: 4.0,
+                   at: SCNVector3(Float(side * 15.0), 7.75, -118), material: stone)
+            addBox(width: 3.55, height: 1.0, length: 4.4,
+                   at: SCNVector3(Float(side * 15.0), 15.9, -118), material: trim)
+            addBox(width: 2.2, height: 9.5, length: 0.10,
+                   at: SCNVector3(Float(side * 13.35), 7.4, -115.9), material: glass)
+        }
+        // Layered cross beams create a curved visual rhythm without an
+        // expensive custom mesh or a full reflection pass.
+        for index in 0..<9 {
+            let x = Float(-13.5 + Double(index) * 3.375)
+            let archHeight = Float(17.1 - abs(Double(index) - 4) * 0.28)
+            let beam = SCNBox(width: 0.55, height: 0.55, length: 27.0, chamferRadius: 0.16)
+            beam.firstMaterial = trim
+            let node = SCNNode(geometry: beam)
+            node.position = SCNVector3(x, archHeight, -118)
+            node.eulerAngles.z = Float((Double(index) - 4) * 0.045)
+            scene.rootNode.addChildNode(node)
+        }
+        addBox(width: 27.0, height: 0.22, length: 0.32,
+               at: SCNVector3(0, 4.8, -115.6), material: cyan)
+
+        // Palm silhouettes break up the repetitive block corners and give the
+        // boulevard a warmer, more authored city profile in daylight.
+        for z in stride(from: -35, through: -410, by: -42) {
+            addPalm(x: -16.8, z: Double(z))
+            addPalm(x: 16.8, z: Double(z) - 18)
+        }
+    }
+
+    private func addPalm(x: Double, z: Double) {
+        let trunk = material(UIColor(red: 0.36, green: 0.23, blue: 0.13, alpha: 1), roughness: 0.88)
+        let leaves = material(UIColor(red: 0.12, green: 0.39, blue: 0.22, alpha: 1), roughness: 0.78)
+        let stem = SCNNode(geometry: SCNCylinder(radius: 0.20, height: 5.8))
+        stem.geometry?.firstMaterial = trunk
+        stem.position = SCNVector3(Float(x), 2.9, Float(z))
+        stem.eulerAngles.z = Float((z.truncatingRemainder(dividingBy: 3.0)) * 0.012)
+        scene.rootNode.addChildNode(stem)
+        for index in 0..<6 {
+            let frond = SCNNode(geometry: SCNSphere(radius: 0.85))
+            frond.geometry?.firstMaterial = leaves
+            frond.scale = SCNVector3(0.45, 0.12, 1.35)
+            frond.position = SCNVector3(Float(x), 6.0, Float(z))
+            frond.eulerAngles.y = Float(index) * .pi / 3
+            frond.eulerAngles.x = -0.23
+            scene.rootNode.addChildNode(frond)
         }
     }
 
@@ -727,6 +841,17 @@ final class DrivingWorld {
     private func createCar() {
         car.name = "player-car"
         scene.rootNode.addChildNode(car)
+        let boost = SCNLight()
+        boost.type = .omni
+        boost.intensity = 0
+        boost.attenuationStartDistance = 0.5
+        boost.attenuationEndDistance = 7
+        boost.color = UIColor(red: 0.18, green: 0.72, blue: 1, alpha: 1)
+        let boostNode = SCNNode()
+        boostNode.position = SCNVector3(0, 0.42, 2.3)
+        boostNode.light = boost
+        car.addChildNode(boostNode)
+        nitroLight = boost
         vehicleVisual.name = "car-visual-forward-minus-z"
         car.addChildNode(vehicleVisual)
         // Soft chassis/tire contact shadow makes the car look grounded.
@@ -749,6 +874,8 @@ final class DrivingWorld {
     private func installCarGeometry(style: CarStyle) {
         vehicleVisual.childNodes.forEach { $0.removeFromParentNode() }
         paintMaterial = VehicleArt.mat(displayedPaint.color, metal: 0.63, rough: 0.17)
+        paintMaterial.clearCoat.contents = 0.72
+        paintMaterial.clearCoatRoughness.contents = 0.12
         if let highDetail = VehicleAssetLoader.installIfAvailable(style: style,
                                                                   into: vehicleVisual,
                                                                   paint: paintMaterial) {
