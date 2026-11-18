@@ -11,3 +11,9 @@ The runtime uses this as an image-based lighting probe for glossy materials;
 it retains NitroDrift's procedural city sky background. A tone-mapped JPG is
 not a full multi-EV HDR light probe — it increases realism of captured urban
 highlights, but does not deliver fully physical dynamic-range reflection.
+
+The daylight clear coat and windows reflect the Potsdamer Platz panorama by Greg Zaal. Golden Hour uses his Pedestrian Overpass panorama. Both are CC0 photographs from Poly Haven. The bundled 512 × 256 RGBE versions preserve the original highlight range.
+
+- https://polyhaven.com/a/potsdamer_platz
+- https://polyhaven.com/a/pedestrian_overpass
+- https://polyhaven.com/license

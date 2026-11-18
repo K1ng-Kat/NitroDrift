@@ -193,7 +193,7 @@ final class StreetWeather {
         waterMasks = masks
     }
 
-    func configure(wet: Bool, quality: GraphicsQuality) {
+    func configure(wet: Bool, quality: GraphicsQuality, mask: Bool = false) {
         isWet = wet
         let cinematic = quality != .balanced
         ultra = quality == .ultra
@@ -206,9 +206,9 @@ final class StreetWeather {
         mirrorFloor.reflectionResolutionScaleFactor = ultra ? 0.55 : cinematic ? 0.34 : 0.17
         for (index, puddle) in puddles.enumerated() {
             puddle.isHidden = !wet || (!cinematic && index.isMultiple(of: 2))
-            waterMasks[index].isHidden = !wet || !ultra
+            waterMasks[index].isHidden = !wet || !ultra || !mask
         }
-        mirrorMask.isHidden = !wet || !ultra
+        mirrorMask.isHidden = !wet || !ultra || !mask
     }
 
     func update(x: Double, z: Double) {

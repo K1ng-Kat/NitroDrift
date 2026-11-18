@@ -32,18 +32,8 @@ struct DrivingHUD: View {
                     // avoiding six controls plus a minimap fighting for width.
                     HStack(alignment: .bottom, spacing: spacing) {
                         VStack(alignment: .leading, spacing: 5) {
-                            HStack(spacing: spacing) {
-                                HoldDriveButton(label: "LEFT", symbol: "arrowshape.left.fill",
-                                                color: NitroTheme.cyan,
-                                                width: steerWidth, height: controlHeight,
-                                                onPressed: { session.input.left = $0 })
-                                    .frame(width: steerWidth, height: controlHeight)
-                                HoldDriveButton(label: "RIGHT", symbol: "arrowshape.right.fill",
-                                                color: NitroTheme.cyan,
-                                                width: steerWidth, height: controlHeight,
-                                                onPressed: { session.input.right = $0 })
-                                    .frame(width: steerWidth, height: controlHeight)
-                            }
+                            SteeringPad { session.input.touchSteering = $0 }
+                                .frame(width: steerWidth * 2 + spacing, height: controlHeight)
                             Text(session.easyDrive ? "AUTO ACCELERATION" : "MANUAL THROTTLE")
                                 .font(.system(size: 9, weight: .bold, design: .monospaced))
                                 .tracking(0.8)
@@ -67,7 +57,7 @@ struct DrivingHUD: View {
                                 HoldDriveButton(label: "NITRO", symbol: "bolt.fill",
                                                 color: NitroTheme.cyan,
                                                 width: pedalWidth, height: controlHeight - 11,
-                                                onPressed: { session.input.nitro = $0 })
+                                                onPressed: { session.pressNitro($0) })
                                     .frame(width: pedalWidth, height: controlHeight - 11)
                                 GeometryReader { progress in
                                     ZStack(alignment: .leading) {
@@ -114,6 +104,8 @@ struct DrivingHUD: View {
                             } else {
                                 Text("PAUSED")
                                     .font(.system(size: 25, weight: .black, design: .rounded))
+                                Toggle("Easy Drive", isOn: Binding(get: { session.easyDrive }, set: session.setEasyDrive))
+                                    .tint(NitroTheme.cyan)
                                 NitroButton(title: "Resume", symbol: "play.fill", highlighted: true) {
                                     session.togglePause()
                                 }
@@ -245,40 +237,33 @@ private struct SpeedReadout: View {
     let compact: Bool
 
     var body: some View {
-        ZStack {
-            ArcGauge(progress: min(1, CGFloat(session.speedKPH) / 260),
-                     color: session.isBoosting ? NitroTheme.orange : NitroTheme.cyan)
-                .frame(width: compact ? 112 : 156, height: compact ? 52 : 70)
-            HStack(alignment: .lastTextBaseline, spacing: 4) {
+        let gold = Color(red: 1, green: 0.80, blue: 0.20)
+        VStack(spacing: -1) {
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
                 Text("\(session.speedKPH)")
-                    .font(.system(size: compact ? 27 : 41, weight: .black, design: .rounded))
+                    .font(.system(size: compact ? 34 : 46, weight: .black, design: .rounded).italic())
                     .monospacedDigit()
-                Text("KM/H")
-                    .font(.system(size: compact ? 8 : 10, weight: .black, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.78))
+                Text("km/h")
+                    .font(.system(size: compact ? 10 : 13, weight: .bold))
             }
-            .padding(.top, compact ? 8 : 12)
+            .foregroundStyle(session.isBoosting ? .white : gold)
+            GeometryReader { proxy in
+                let w = proxy.size.width
+                let arc = Path { path in
+                    path.move(to: CGPoint(x: 3, y: 1))
+                    path.addQuadCurve(to: CGPoint(x: w-3, y: 1), control: CGPoint(x: w/2, y: 14))
+                }
+                arc.stroke(.black.opacity(0.4), style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                arc.trimmedPath(from: 0, to: max(0,min(1,CGFloat(session.nitro/100))))
+                    .stroke(session.isBoosting ? .cyan : gold, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+            }
+            .frame(height: 10)
         }
-        .frame(width: compact ? 122 : 170)
+        .frame(width: compact ? 118 : 150)
+        .shadow(color: .black.opacity(0.64), radius: 2, y: 1)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Speed and nitro")
+        .accessibilityValue("\(session.speedKPH) kilometres per hour, \(Int(session.nitro)) percent nitro")
         .allowsHitTesting(false)
-    }
-}
-
-private struct ArcGauge: View {
-    var progress: CGFloat
-    var color: Color
-
-    var body: some View {
-        ZStack {
-            Circle()
-                .trim(from: 0.60, to: 0.90)
-                .stroke(.white.opacity(0.18), style: StrokeStyle(lineWidth: 5, lineCap: .round))
-                .rotationEffect(.degrees(12))
-            Circle()
-                .trim(from: 0.60, to: 0.60 + 0.30 * progress)
-                .stroke(color, style: StrokeStyle(lineWidth: 5, lineCap: .round))
-                .rotationEffect(.degrees(12))
-                .shadow(color: color.opacity(0.62), radius: 8)
-        }
     }
 }

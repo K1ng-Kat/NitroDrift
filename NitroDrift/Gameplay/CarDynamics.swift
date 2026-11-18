@@ -63,7 +63,7 @@ struct CarDynamics {
         let throttle = clamp(max(input.gas ? 1.0 : 0.0, input.analogThrottle), 0, 1)
         let brake = clamp(max(input.brake ? 1.0 : 0.0, input.analogBrake), 0, 1)
         let steeringInput = clamp(Double((input.right ? 1 : 0) - (input.left ? 1 : 0))
-                                  + input.analogSteering, -1, 1)
+                                  + input.touchSteering + input.analogSteering, -1, 1)
         let handbrake = input.handbrake || input.gamepadHandbrake
         let gears = [3.47, 2.17, 1.56, 1.16, 0.87, 0.70]
         let finalDrive = 3.34

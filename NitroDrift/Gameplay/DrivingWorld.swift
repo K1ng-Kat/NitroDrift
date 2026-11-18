@@ -13,6 +13,8 @@ final class DrivingWorld {
     private lazy var tireTrails = TireTrails(scene: scene)
     private let tireSpray = TireSpray()
     private lazy var weatherFX = StreetWeather(scene: scene)
+    var rendersWaterMask = false
+    private var displayedMask = false
     private var displayedWeather: StreetWeatherMode = .dry
     private var asphaltMaterials: [SCNMaterial] = []
 
@@ -21,6 +23,7 @@ final class DrivingWorld {
     private let camera = SCNNode()
     private var paintMaterial = SCNMaterial()
     private var nitroFlames: [SCNNode] = []
+    private var bodyMaterials: [SCNMaterial] = []
     private var brakeLights: [SCNMaterial] = []
     private var wheelNodes: [SCNNode] = []
     private let rivalGhost = SCNNode()
@@ -72,12 +75,13 @@ final class DrivingWorld {
         let delta = min(1.0 / 20.0, max(0.0, dt))
         elapsed += delta
 
-        if currentQuality != session.graphicsQuality || displayedWeather != session.weather {
+        if currentQuality != session.graphicsQuality || displayedWeather != session.weather || displayedMask != rendersWaterMask {
+            displayedMask = rendersWaterMask
             currentQuality = session.graphicsQuality
             displayedWeather = session.weather
             configureGraphics(session.graphicsQuality)
             let wet = session.weather == .rain
-            weatherFX.configure(wet: wet, quality: session.graphicsQuality)
+            weatherFX.configure(wet: wet, quality: session.graphicsQuality, mask: rendersWaterMask)
             for asphalt in asphaltMaterials {
                 asphalt.roughness.contents = wet ? 0.18 : CityVisuals.roadRoughness()
             }
@@ -111,6 +115,7 @@ final class DrivingWorld {
         if displayedPaint != session.paint {
             displayedPaint = session.paint
             paintMaterial.diffuse.contents = session.paint.color
+            VehicleAssetLoader.repaint(bodyMaterials, style: displayedStyle, finish: session.paint)
         }
 
         if displayedStyle != session.carStyle {
@@ -140,17 +145,24 @@ final class DrivingWorld {
 
     private func configureTimeOfDay(_ mode: StreetTimeOfDay) {
         displayedTimeOfDay = mode
+        AuthoredCity.setLighting(mode)
         let sky = CityVisuals.sky(mode)
         scene.background.contents = sky
-        scene.lightingEnvironment.contents = mode == .night
-            ? (CityVisuals.urbanLightingProbe() ?? sky) : sky
+        if mode == .night {
+            scene.lightingEnvironment.contents = CityVisuals.urbanLightingProbe() ?? sky
+        } else if let probe = Bundle.main.url(forResource: mode == .day ? "plaza-day" : "overpass-sunset",
+                                               withExtension: "hdr", subdirectory: "Assets.scnassets/Environment") {
+            scene.lightingEnvironment.contents = probe
+        } else {
+            scene.lightingEnvironment.contents = sky
+        }
         switch mode {
         case .day:
-            ambientLight?.intensity = 1050
+            ambientLight?.intensity = 430
             ambientLight?.color = UIColor(red: 0.77, green: 0.87, blue: 1, alpha: 1)
-            directionalLight?.intensity = 2650
+            directionalLight?.intensity = 1870
             directionalLight?.color = UIColor(red: 1, green: 0.94, blue: 0.82, alpha: 1)
-            scene.lightingEnvironment.intensity = 1.9
+            scene.lightingEnvironment.intensity = 1.05
             scene.fogColor = UIColor(red: 0.54, green: 0.68, blue: 0.78, alpha: 1)
             camera.camera?.exposureOffset = 0.18
         case .sunset:
@@ -158,7 +170,7 @@ final class DrivingWorld {
             ambientLight?.color = UIColor(red: 0.81, green: 0.70, blue: 0.78, alpha: 1)
             directionalLight?.intensity = 2380
             directionalLight?.color = UIColor(red: 1, green: 0.69, blue: 0.43, alpha: 1)
-            scene.lightingEnvironment.intensity = 1.8
+            scene.lightingEnvironment.intensity = 0.90
             scene.fogColor = UIColor(red: 0.38, green: 0.31, blue: 0.35, alpha: 1)
             camera.camera?.exposureOffset = 0.0
         case .night:
@@ -222,7 +234,9 @@ final class DrivingWorld {
            !input.handbrake && !input.gamepadHandbrake {
             input.gas = true
         }
-        let canNitro = (input.nitro || input.gamepadNitro) && (input.gas || input.analogThrottle > 0.15) && currentNitro > 0.4 && velocity > 2
+        session.input.boostPulse = max(0, input.boostPulse - dt)
+        if input.brake || input.analogBrake > 0.1 { session.input.boostPulse = 0 }
+        let canNitro = !input.brake && input.analogBrake < 0.1 && (input.nitro || input.gamepadNitro || session.input.boostPulse > 0) && (input.gas || input.analogThrottle > 0.15) && currentNitro > 0.4 && velocity > 2
         if canNitro != session.isBoosting { session.isBoosting = canNitro }
         let meterDrain = max(12, 23 - Double(session.nitroLevel) * 1.8)
         currentNitro = min(100, max(0, currentNitro + (canNitro ? -meterDrain : 6.5) * dt))
@@ -277,7 +291,7 @@ final class DrivingWorld {
 
         for (index, wheel) in wheelNodes.enumerated() {
             // The wheels are physically oriented on the X axis.
-            wheel.childNode(withName: "roll", recursively: false)?.eulerAngles.x += Float(velocity * dt / 0.49)
+            wheel.childNode(withName: "roll", recursively: false)?.eulerAngles.x -= Float(velocity * dt / (bodyMaterials.isEmpty ? 0.49 : 0.35))
             if index < 2 { wheel.eulerAngles.y = Float(frame.steering * 0.90) }
         }
 
@@ -491,19 +505,8 @@ final class DrivingWorld {
             addBox(width: 1040, height: 0.08, length: 24,
                    at: SCNVector3(0, 0.03, Float(coordinate)), material: asphaltEW)
 
-            for marker in stride(from: -495, through: 495, by: 15) {
-                // Avoid drawing lines directly through road intersections.
-                if abs(Double(marker) - (Double(marker) / 150).rounded() * 150) < 17 { continue }
-                addBox(width: 0.20, height: 0.012, length: 6.0,
-                       at: SCNVector3(Float(coordinate), 0.077, Float(marker)), material: roadLines)
-                addBox(width: 6.0, height: 0.012, length: 0.20,
-                       at: SCNVector3(Float(marker), 0.078, Float(coordinate)), material: roadLines)
-            }
-            addBox(width: 0.16, height: 0.014, length: 1040,
-                   at: SCNVector3(Float(coordinate) - 4.2, 0.081, 0), material: centerLines)
-            addBox(width: 1040, height: 0.014, length: 0.16,
-                   at: SCNVector3(0, 0.082, Float(coordinate) - 4.2), material: centerLines)
         }
+        RoadMarkings.install(in: scene, white: roadLines, yellow: centerLines)
 
         // Raised sidewalks along blocks, leaving intersections open.
         let concrete = material(UIColor(red: 0.15, green: 0.16, blue: 0.19, alpha: 1), roughness: 0.89)
@@ -524,20 +527,6 @@ final class DrivingWorld {
                     addBox(width: 125, height: 0.30, length: 0.19,
                            at: SCNVector3(Float(segment), 0.09, Float(Double(road) + side * 12.05)),
                            material: curb)
-                }
-            }
-        }
-
-        let crossing = material(UIColor(red: 0.67, green: 0.70, blue: 0.73, alpha: 1), roughness: 0.78)
-        for x in [-150, 0, 150] {
-            for z in [-150, 0, 150] {
-                for stripe in -4...4 {
-                    addBox(width: 1.3, height: 0.008, length: 3.2,
-                           at: SCNVector3(Float(x) + Float(stripe) * 2.0, 0.085, Float(z) + 17.5),
-                           material: crossing)
-                    addBox(width: 3.2, height: 0.008, length: 1.3,
-                           at: SCNVector3(Float(x) + 17.5, 0.087, Float(z) + Float(stripe) * 2.0),
-                           material: crossing)
                 }
             }
         }
@@ -566,13 +555,13 @@ final class DrivingWorld {
                         let depth = Double(29 + random(12))
                         let height = Double(22 + random(66))
                         let style = random(6)
+                        if usingAuthoredCity { continue }
                         let building = CityArchitecture.building(
                             width: CGFloat(width), height: CGFloat(height),
                             depth: CGFloat(depth), index: style)
                         building.position = SCNVector3(Float(x), Float(height / 2), Float(z))
-                        if !usingAuthoredCity { scene.rootNode.addChildNode(building) }
+                        scene.rootNode.addChildNode(building)
 
-                        if usingAuthoredCity { continue }
                         // Ground-floor glass frontage, with believable
                         // night-lit interiors instead of vertical neon tubes.
                         let entranceSide = (x > 0 ? -1.0 : 1.0)
@@ -642,71 +631,6 @@ final class DrivingWorld {
             }
         }
 
-        createHeroBoulevard()
-    }
-
-    /// A readable landmark gives the first stretch of road a designed race
-    /// identity instead of asking the player to drive through a grid of boxes.
-    /// It is intentionally built from a small number of beveled primitives so
-    /// it remains fast on iPhone and iPad while giving the camera a strong
-    /// focal point like a premium mobile racer.
-    private func createHeroBoulevard() {
-        let stone = material(UIColor(red: 0.72, green: 0.75, blue: 0.76, alpha: 1), roughness: 0.46)
-        let trim = material(UIColor(red: 0.23, green: 0.30, blue: 0.37, alpha: 1), roughness: 0.25)
-        trim.metalness.contents = 0.58
-        let glass = material(UIColor(red: 0.16, green: 0.45, blue: 0.68, alpha: 0.56), roughness: 0.10)
-        glass.metalness.contents = 0.22
-        let cyan = glowMaterial(UIColor(red: 0.12, green: 0.76, blue: 1, alpha: 1), intensity: 1.25)
-
-        // A bridge portal sits ahead of the start line, aligned with the road.
-        for side in [-1.0, 1.0] {
-            addBox(width: 3.0, height: 15.5, length: 4.0,
-                   at: SCNVector3(Float(side * 15.0), 7.75, -118), material: stone)
-            addBox(width: 3.55, height: 1.0, length: 4.4,
-                   at: SCNVector3(Float(side * 15.0), 15.9, -118), material: trim)
-            addBox(width: 2.2, height: 9.5, length: 0.10,
-                   at: SCNVector3(Float(side * 13.35), 7.4, -115.9), material: glass)
-        }
-        // Layered cross beams create a curved visual rhythm without an
-        // expensive custom mesh or a full reflection pass.
-        for index in 0..<9 {
-            let x = Float(-13.5 + Double(index) * 3.375)
-            let archHeight = Float(17.1 - abs(Double(index) - 4) * 0.28)
-            let beam = SCNBox(width: 0.55, height: 0.55, length: 27.0, chamferRadius: 0.16)
-            beam.firstMaterial = trim
-            let node = SCNNode(geometry: beam)
-            node.position = SCNVector3(x, archHeight, -118)
-            node.eulerAngles.z = Float((Double(index) - 4) * 0.045)
-            scene.rootNode.addChildNode(node)
-        }
-        addBox(width: 27.0, height: 0.22, length: 0.32,
-               at: SCNVector3(0, 4.8, -115.6), material: cyan)
-
-        // Palm silhouettes break up the repetitive block corners and give the
-        // boulevard a warmer, more authored city profile in daylight.
-        for z in stride(from: -35, through: -410, by: -42) {
-            addPalm(x: -16.8, z: Double(z))
-            addPalm(x: 16.8, z: Double(z) - 18)
-        }
-    }
-
-    private func addPalm(x: Double, z: Double) {
-        let trunk = material(UIColor(red: 0.36, green: 0.23, blue: 0.13, alpha: 1), roughness: 0.88)
-        let leaves = material(UIColor(red: 0.12, green: 0.39, blue: 0.22, alpha: 1), roughness: 0.78)
-        let stem = SCNNode(geometry: SCNCylinder(radius: 0.20, height: 5.8))
-        stem.geometry?.firstMaterial = trunk
-        stem.position = SCNVector3(Float(x), 2.9, Float(z))
-        stem.eulerAngles.z = Float((z.truncatingRemainder(dividingBy: 3.0)) * 0.012)
-        scene.rootNode.addChildNode(stem)
-        for index in 0..<6 {
-            let frond = SCNNode(geometry: SCNSphere(radius: 0.85))
-            frond.geometry?.firstMaterial = leaves
-            frond.scale = SCNVector3(0.45, 0.12, 1.35)
-            frond.position = SCNVector3(Float(x), 6.0, Float(z))
-            frond.eulerAngles.y = Float(index) * .pi / 3
-            frond.eulerAngles.x = -0.23
-            scene.rootNode.addChildNode(frond)
-        }
     }
 
     private func addDistrictSign(_ title: String, x: Float, y: Float, z: Float, color: UIColor) {
@@ -882,13 +806,15 @@ final class DrivingWorld {
         paintMaterial.clearCoatRoughness.contents = 0.12
         if let highDetail = VehicleAssetLoader.installIfAvailable(style: style,
                                                                   into: vehicleVisual,
-                                                                  paint: paintMaterial) {
+                                                                  paint: paintMaterial, finish: displayedPaint) {
+            bodyMaterials = highDetail.bodyMaterials
             wheelNodes = highDetail.wheels
             nitroFlames = highDetail.flames
             brakeLights = highDetail.brakeLights
             vehicleVisual.scale = SCNVector3(1, 1, 1)
         } else {
             let parts = VehicleArt.install(into: vehicleVisual, paint: paintMaterial)
+            bodyMaterials = []
             wheelNodes = parts.wheels
             nitroFlames = parts.flames
             brakeLights = parts.brakeLights

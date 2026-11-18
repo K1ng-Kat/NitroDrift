@@ -6,6 +6,11 @@ import SceneKit
 final class MetalRaceView: MTKView, MTKViewDelegate {
     let sceneRenderer: SCNRenderer
     private let commands: MTLCommandQueue
+    private weak var raceWorld: DrivingWorld?
+    private let inFlight = DispatchSemaphore(value: 2)
+    private var renderScale: CGFloat = 1
+    private var gpuAverage = 0.0
+    private var sampledFrames = 0
     private var activeQuality: GraphicsQuality?
     private var refraction = false
     #if DEBUG
@@ -24,6 +29,7 @@ final class MetalRaceView: MTKView, MTKViewDelegate {
         #if DEBUG
         captureWorld = world
         #endif
+        raceWorld = world
         sceneRenderer.scene = world.scene
         sceneRenderer.pointOfView = world.pointOfView
         sceneRenderer.autoenablesDefaultLighting = false
@@ -46,7 +52,8 @@ final class MetalRaceView: MTKView, MTKViewDelegate {
         #endif
         if activeQuality != session.graphicsQuality {
             activeQuality = session.graphicsQuality
-            let requested = session.graphicsQuality == .balanced ? 2 : 4
+            renderScale = 1; gpuAverage = 0; sampledFrames = 0
+            let requested = session.graphicsQuality == .ultra ? 4 : 2
             sampleCount = device?.supportsTextureSampleCount(requested) == true ? requested : 1
             resizeTargets()
         }
@@ -54,6 +61,7 @@ final class MetalRaceView: MTKView, MTKViewDelegate {
             && session.screenRefractionEnabled
         if water != refraction {
             sceneRenderer.technique = water ? ScreenSpaceWater.makeTechnique() : nil
+            raceWorld?.rendersWaterMask = sceneRenderer.technique != nil
             refraction = water
         }
     }
@@ -68,7 +76,7 @@ final class MetalRaceView: MTKView, MTKViewDelegate {
         let native = window?.screen.scale ?? traitCollection.displayScale
         // Pixel budgets limit memory/bandwidth on iPad while preserving aspect.
         let cap: CGFloat = activeQuality == .ultra ? 2560 : activeQuality == .cinematic ? 1920 : 1440
-        let scale = min(native, cap / max(bounds.width, bounds.height))
+        let scale = min(native, cap / max(bounds.width, bounds.height)) * renderScale
         let size = CGSize(width: max(1, (bounds.width * scale).rounded()),
                           height: max(1, (bounds.height * scale).rounded()))
         if drawableSize != size { drawableSize = size }
@@ -83,8 +91,18 @@ final class MetalRaceView: MTKView, MTKViewDelegate {
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {}
 
     func draw(in view: MTKView) {
+        // Drop a stale submission when two frames are already in flight.
+        // Input and simulation continue on the display link.
+        guard inFlight.wait(timeout: .now()) == .success else { return }
         guard let pass = currentRenderPassDescriptor, let drawable = currentDrawable,
-              let buffer = commands.makeCommandBuffer() else { return }
+              let buffer = commands.makeCommandBuffer() else { inFlight.signal(); return }
+        let slots = inFlight
+        buffer.addCompletedHandler { [weak self] command in
+            slots.signal()
+            let duration = command.gpuEndTime - command.gpuStartTime
+            guard duration > 0, duration < 1 else { return }
+            DispatchQueue.main.async { [weak self] in self?.observeGPU(duration) }
+        }
         buffer.label = "NitroDrift scene frame"
         sceneRenderer.render(atTime: frameTime,
                              viewport: CGRect(origin: .zero, size: drawableSize),
@@ -95,4 +113,19 @@ final class MetalRaceView: MTKView, MTKViewDelegate {
         buffer.present(drawable)
         buffer.commit()
     }
+    private func observeGPU(_ seconds: Double) {
+        gpuAverage = gpuAverage == 0 ? seconds : gpuAverage * 0.92 + seconds * 0.08
+        sampledFrames += 1
+        let previous = renderScale
+        if sampledFrames >= 30 && gpuAverage > 0.017 {
+            renderScale = max(0.72, renderScale - 0.06)
+        } else if sampledFrames >= 120 && gpuAverage < 0.011 {
+            renderScale = min(1, renderScale + 0.04)
+        }
+        if renderScale != previous {
+            sampledFrames = 0
+            resizeTargets()
+        }
+    }
+
 }

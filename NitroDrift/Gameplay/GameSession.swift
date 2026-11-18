@@ -82,12 +82,14 @@ enum CarStyle: Int, CaseIterable, Identifiable {
 
 struct DriverInput {
     var left = false, right = false, gas = false, brake = false, nitro = false
+    var touchSteering = 0.0, boostPulse = 0.0
     var handbrake = false
     var analogSteering = 0.0, analogThrottle = 0.0, analogBrake = 0.0
     var gamepadHandbrake = false, gamepadNitro = false
     mutating func clear() {
         left = false; right = false; gas = false; brake = false
         nitro = false; handbrake = false
+        touchSteering = 0; boostPulse = 0
         analogSteering = 0; analogThrottle = 0; analogBrake = 0
         gamepadHandbrake = false; gamepadNitro = false
     }
@@ -334,6 +336,11 @@ final class GameSession: ObservableObject {
         store.set(upgraded, forKey: key)
         feedback(.medium)
         return true
+    }
+
+    func pressNitro(_ pressed: Bool) {
+        input.nitro = pressed
+        if pressed && !isPaused { input.boostPulse = 1.25 }
     }
 
     func togglePause() {

@@ -4,6 +4,7 @@ import Foundation
 // without launching SwiftUI/SceneKit or requiring an iOS simulator.
 struct DriverInput {
     var left = false, right = false, gas = false, brake = false, nitro = false
+    var touchSteering = 0.0
     var handbrake = false
     var analogSteering = 0.0, analogThrottle = 0.0, analogBrake = 0.0
     var gamepadHandbrake = false, gamepadNitro = false
@@ -24,6 +25,22 @@ struct PhysicsSmoke {
                      "Acceleration should be gradual, in plausible m/s range")
         precondition(car.rpm >= 875 && car.rpm <= 7050, "RPM outside drivetrain envelope")
         precondition(car.gear >= 1 && car.gear <= 6, "Invalid gear")
+        // A held thumb can reverse through neutral without a new touch. Both
+        // devices feed the same steering rack at the same input magnitude.
+        var touchCar = car, padCar = car
+        for value in [0.38, -0.74, 0.0] {
+            var touch = DriverInput(), pad = DriverInput()
+            touch.touchSteering = value
+            pad.analogSteering = value
+            for _ in 0..<36 {
+                _ = touchCar.step(dt: dt, input: touch, engine: 1, handling: 1,
+                                  brakes: 0, carTier: 0, assist: true, boosting: false)
+                _ = padCar.step(dt: dt, input: pad, engine: 1, handling: 1,
+                                brakes: 0, carTier: 0, assist: true, boosting: false)
+            }
+            precondition(abs(touchCar.heading-padCar.heading) < 1e-9)
+            precondition(abs(touchCar.x-padCar.x) < 1e-9)
+        }
         let previousSpeed = car.speed
         var braking = DriverInput()
         braking.brake = true

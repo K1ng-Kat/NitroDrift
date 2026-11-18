@@ -41,6 +41,8 @@ jobs:
               assert "VERSION = 2;" in merged.read_text()
               assert marker.is_file(), "Other local changes must retain recovery backups"
           PY
+      - name: Validate authored city geometry
+        run: python3 scripts/validate_city_tiles.py
       - name: Physics smoke tests
         run: |
           swiftc NitroDrift/Gameplay/CarDynamics.swift scripts/PhysicsSmokeTest.swift -o "$RUNNER_TEMP/physics-smoke"

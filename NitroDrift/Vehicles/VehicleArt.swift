@@ -8,6 +8,7 @@ enum VehicleArt {
         let wheels: [SCNNode]
         let flames: [SCNNode]
         let brakeLights: [SCNMaterial]
+        var bodyMaterials: [SCNMaterial] = []
     }
 
     static func install(into car: SCNNode, paint: SCNMaterial) -> Assembly {
