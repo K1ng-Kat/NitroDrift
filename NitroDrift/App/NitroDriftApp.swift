@@ -10,6 +10,7 @@ struct NitroDriftApp: App {
                 .environmentObject(session)
                 .preferredColorScheme(.dark)
                 .statusBarHidden()
+                .persistentSystemOverlays(.hidden)
                 .onAppear {
                     #if DEBUG
                     // An explicit test-only launch argument lets GitHub Actions

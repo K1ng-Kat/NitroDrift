@@ -1,46 +1,55 @@
 #if DEBUG
-import Foundation
-import Metal
+import MetalKit
 import QuartzCore
 
-/// Enabled only by the simulator capture launch argument. The shell waits for
-/// completed Metal work before taking a screenshot and records display cadence.
+/// Writes launch-test results after frame submission, GPU completion, and a
+/// warm-up on the selected course. Disabled for ordinary gameplay.
 final class SimulatorCapture {
     private let enabled = ProcessInfo.processInfo.arguments.contains("-ndAutomatedDrive")
-    private var intervals: [Double] = []
+    private var intervals = [Double]()
     private var previous: CFTimeInterval?
-    private var didWrite = false
-    private var started = false
+    private var frames = 0
+    private var peakSpeed = 0
+    private var wroteMarker = false
+    private var finished = false
 
-    func record(_ buffer: MTLCommandBuffer, time: CFTimeInterval, world: DrivingWorld?,
-                session: GameSession?) {
-        guard enabled, !didWrite, session?.phase == .driving else { return }
-        guard let world, !world.hasStreamableRoads || world.residentRoads > 0 else { return }
-        if let previous, time > previous { intervals.append((time - previous) * 1000) }
+    func record(_ buffer: MTLCommandBuffer, time: CFTimeInterval, view: MTKView,
+                world: DrivingWorld?, session: GameSession?) {
+        guard enabled, !finished, let session, session.phase == .driving,
+              let world, !world.hasStreamableRoads || world.residentRoads > 0,
+              let screen = view.window?.windowScene?.screen else { return }
+        frames += 1
+        peakSpeed = max(peakSpeed,session.speedKPH)
+        guard frames > 45 else { return }
+        if let previous, time > previous { intervals.append((time-previous)*1000) }
         previous = time
         let dir = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
-        if !started {
-            started = true
-            let output = dir.appendingPathComponent("nd-frame-ready")
-            buffer.addCompletedHandler { command in
-                if command.status == .completed { try? Data("ready".utf8).write(to: output, options: .atomic) }
-            }
+        if !wroteMarker && (!session.easyDrive || peakSpeed >= 5) {
+            wroteMarker = true
+            write(Data("ready".utf8), to: dir.appendingPathComponent("nd-frame-ready"), after: buffer)
         }
-        guard intervals.count >= 120, let session else { return }
-        didWrite = true
+        guard intervals.count >= 120 else { return }
+        finished = true
         let sorted = intervals.sorted()
         let report: [String: Any] = [
-            "displayIntervalP50ms": sorted[sorted.count/2],
-            "displayIntervalP95ms": sorted[sorted.count*95/100],
-            "samples": sorted.count, "speedKPH": session.speedKPH,
-            "streamingSupported": world.hasStreamableRoads, "residentStreets": world.residentRoads,
-            "weather": session.weather.rawValue, "quality": session.graphicsQuality.rawValue,
+            "displayIntervalP50ms": sorted[sorted.count/2], "displayIntervalP95ms": sorted[sorted.count*95/100],
+            "samples": sorted.count, "speedKPH": session.speedKPH, "peakKPH": peakSpeed,
+            "easyDrive": session.easyDrive, "streamingSupported": world.hasStreamableRoads,
+            "residentStreets": world.residentRoads, "weather": session.weather.rawValue,
+            "quality": session.graphicsQuality.rawValue, "car": session.carStyle.title,
+            "wheelPivots": world.activeWheelPivots, "authoredCity": world.authoredBlocksLoaded,
+            "viewportWidth": Double(view.bounds.width), "viewportHeight": Double(view.bounds.height),
+            "nativeWidth": Double(screen.nativeBounds.width), "nativeHeight": Double(screen.nativeBounds.height),
             "source": "iPhone simulator display link"
         ]
-        guard let data = try? JSONSerialization.data(withJSONObject: report, options: [.prettyPrinted]) else { return }
-        let output = dir.appendingPathComponent("nd-cadence.json")
+        if let data = try? JSONSerialization.data(withJSONObject: report, options: [.prettyPrinted]) {
+            write(data, to: dir.appendingPathComponent("nd-cadence.json"), after: buffer)
+        }
+    }
+
+    private func write(_ data: Data, to url: URL, after buffer: MTLCommandBuffer) {
         buffer.addCompletedHandler { command in
-            if command.status == .completed { try? data.write(to: output, options: .atomic) }
+            if command.status == .completed { try? data.write(to: url, options: .atomic) }
         }
     }
 }

@@ -126,6 +126,7 @@ enum VehicleAssetLoader {
             chassis.addChildNode(node)
             return node
         }
-        return VehicleArt.Assembly(wheels: pivots, flames: flames, brakeLights: bodies, bodyMaterials: bodies)
+        let lamps = style == .street && pivots.count == 4 ? bodies + [StreetGTFascia.install(on: chassis)] : bodies
+        return VehicleArt.Assembly(wheels: pivots, flames: flames, brakeLights: lamps, bodyMaterials: bodies)
     }
 }

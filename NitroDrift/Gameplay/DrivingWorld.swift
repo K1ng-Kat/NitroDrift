@@ -6,6 +6,8 @@ import SceneKit
 /// All art is generated in code, so the first build needs no external assets.
 final class DrivingWorld {
     let scene = SCNScene()
+    var activeWheelPivots: Int { wheelNodes.count }
+    var authoredBlocksLoaded: Bool { usingAuthoredCity }
     var residentRoads: Int { roadSurfaces.activeCount }
     var hasStreamableRoads: Bool { roadSurfaces.available }
     private lazy var roadSurfaces = RoadSurfaceStream(scene: scene)
@@ -34,6 +36,7 @@ final class DrivingWorld {
     private var heading = 0.0
     private var velocity = 0.0
     private var currentNitro = 100.0
+    private var boostNeedsRelease = false
     private var elapsed = 0.0
     private var hudElapsed = 0.0
     private var driftElapsed = 0.0
@@ -46,6 +49,8 @@ final class DrivingWorld {
     private var impactShake = 0.0
     private var currentQuality: GraphicsQuality?
     private var directionalLight: SCNLight?
+    private let streetLampLights = SCNNode()
+    private lazy var lampMesh = makeStreetLampMesh()
     private var ambientLight: SCNLight?
     private var nitroLight: SCNLight?
     private var displayedTimeOfDay: StreetTimeOfDay?
@@ -55,6 +60,7 @@ final class DrivingWorld {
     private let distantCity = SCNNode()
 
     init() {
+        scene.rootNode.addChildNode(streetLampLights)
         createEnvironment()
         cinematicDetails.name = "cinematic-streetscape"
         scene.rootNode.addChildNode(cinematicDetails)
@@ -145,6 +151,7 @@ final class DrivingWorld {
 
     private func configureTimeOfDay(_ mode: StreetTimeOfDay) {
         displayedTimeOfDay = mode
+        streetLampLights.isHidden = mode == .day
         AuthoredCity.setLighting(mode)
         let sky = CityVisuals.sky(mode)
         scene.background.contents = sky
@@ -158,13 +165,13 @@ final class DrivingWorld {
         }
         switch mode {
         case .day:
-            ambientLight?.intensity = 430
+            ambientLight?.intensity = 260
             ambientLight?.color = UIColor(red: 0.77, green: 0.87, blue: 1, alpha: 1)
-            directionalLight?.intensity = 1870
+            directionalLight?.intensity = 1540
             directionalLight?.color = UIColor(red: 1, green: 0.94, blue: 0.82, alpha: 1)
-            scene.lightingEnvironment.intensity = 1.05
+            scene.lightingEnvironment.intensity = 0.96
             scene.fogColor = UIColor(red: 0.54, green: 0.68, blue: 0.78, alpha: 1)
-            camera.camera?.exposureOffset = 0.18
+            camera.camera?.exposureOffset = -0.29
         case .sunset:
             ambientLight?.intensity = 720
             ambientLight?.color = UIColor(red: 0.81, green: 0.70, blue: 0.78, alpha: 1)
@@ -184,7 +191,9 @@ final class DrivingWorld {
         }
         // Windows are no longer fully lit at noon; night façades become alive.
         let emission: CGFloat = mode == .day ? 0.08 : mode == .sunset ? 0.22 : 0.55
-        for style in CityArchitecture.presets { style.walls.emission.intensity = emission }
+        if !usingAuthoredCity {
+            for style in CityArchitecture.presets { style.walls.emission.intensity = emission }
+        }
     }
 
     private func configureGraphics(_ quality: GraphicsQuality) {
@@ -219,6 +228,7 @@ final class DrivingWorld {
         heading = dynamics.heading
         velocity = 0
         currentNitro = 100
+        boostNeedsRelease = false
         driftElapsed = 0
         tireTrails.reset()
         car.position = SCNVector3(0, 0, 35)
@@ -236,8 +246,15 @@ final class DrivingWorld {
         }
         session.input.boostPulse = max(0, input.boostPulse - dt)
         if input.brake || input.analogBrake > 0.1 { session.input.boostPulse = 0 }
-        let canNitro = !input.brake && input.analogBrake < 0.1 && (input.nitro || input.gamepadNitro || session.input.boostPulse > 0) && (input.gas || input.analogThrottle > 0.15) && currentNitro > 0.4 && velocity > 2
-        if canNitro != session.isBoosting { session.isBoosting = canNitro }
+        let wantsBoost = input.nitro || input.gamepadNitro || session.input.boostPulse > 0
+        if !wantsBoost { boostNeedsRelease = false }
+        if wantsBoost && currentNitro <= 0.4 { boostNeedsRelease = true }
+        let canNitro = wantsBoost && !boostNeedsRelease && !input.brake && input.analogBrake < 0.1
+            && (input.gas || input.analogThrottle > 0.15) && currentNitro > 0.4 && velocity > 2
+        if canNitro != session.isBoosting {
+            session.isBoosting = canNitro
+            if canNitro { session.feedback(.light) }
+        }
         let meterDrain = max(12, 23 - Double(session.nitroLevel) * 1.8)
         currentNitro = min(100, max(0, currentNitro + (canNitro ? -meterDrain : 6.5) * dt))
 
@@ -512,23 +529,25 @@ final class DrivingWorld {
         let concrete = material(UIColor(red: 0.15, green: 0.16, blue: 0.19, alpha: 1), roughness: 0.89)
         let curb = material(UIColor(red: 0.32, green: 0.34, blue: 0.38, alpha: 1), roughness: 0.77)
         for road in stride(from: -450, through: 450, by: 150) {
+            let group = SCNNode()
             for segment in stride(from: -375, through: 375, by: 150) {
                 for side in [-1.0, 1.0] {
                     let edge = Double(road) + side * 13.25
                     addBox(width: 2.0, height: 0.21, length: 125,
                            at: SCNVector3(Float(edge), 0.065, Float(segment)),
-                           material: concrete)
+                           material: concrete, parent: group)
                     addBox(width: 0.19, height: 0.30, length: 125,
                            at: SCNVector3(Float(Double(road) + side * 12.05), 0.09, Float(segment)),
-                           material: curb)
+                           material: curb, parent: group)
                     addBox(width: 125, height: 0.21, length: 2.0,
                            at: SCNVector3(Float(segment), 0.066, Float(edge)),
-                           material: concrete)
+                           material: concrete, parent: group)
                     addBox(width: 125, height: 0.30, length: 0.19,
                            at: SCNVector3(Float(segment), 0.09, Float(Double(road) + side * 12.05)),
-                           material: curb)
+                           material: curb, parent: group)
                 }
             }
+            scene.rootNode.addChildNode(group.flattenedClone())
         }
 
         var seed: UInt64 = 0xDA71F7
@@ -644,46 +663,54 @@ final class DrivingWorld {
         scene.rootNode.addChildNode(sign)
     }
 
-    private func addStreetLight(x: Double, z: Double) {
+    private func makeStreetLampMesh() -> SCNNode {
+        let group = SCNNode()
         let steel = material(UIColor(red: 0.25, green: 0.27, blue: 0.28, alpha: 1), roughness: 0.38)
         steel.metalness.contents = 0.75
         let steelFrame = SCNNode(geometry: SCNCylinder(radius: 0.11, height: 7.6))
         steelFrame.geometry?.firstMaterial = steel
-        steelFrame.position = SCNVector3(Float(x), 3.8, Float(z))
-        scene.rootNode.addChildNode(steelFrame)
+        steelFrame.position = SCNVector3(0, 3.8, 0)
+        group.addChildNode(steelFrame)
 
         // Road-facing arm and downlight give a recognizable lamp silhouette.
         let arm = SCNNode(geometry: SCNBox(width: 0.16, height: 0.11,
                                            length: 2.6, chamferRadius: 0.035))
         arm.geometry?.firstMaterial = steel
-        arm.position = SCNVector3(Float(x), 7.52, Float(z - 1.20))
-        scene.rootNode.addChildNode(arm)
+        arm.position = SCNVector3(0, 7.52, -1.20)
+        group.addChildNode(arm)
 
         let housing = SCNNode(geometry: SCNBox(width: 0.66, height: 0.20,
                                                length: 0.90, chamferRadius: 0.09))
         housing.geometry?.firstMaterial = steel
-        housing.position = SCNVector3(Float(x), 7.42, Float(z - 2.52))
-        scene.rootNode.addChildNode(housing)
+        housing.position = SCNVector3(0, 7.42, -2.52)
+        group.addChildNode(housing)
 
         let diffuser = SCNNode(geometry: SCNBox(width: 0.56, height: 0.036,
                                                 length: 0.72, chamferRadius: 0.025))
         diffuser.geometry?.firstMaterial = glowMaterial(
             UIColor(red: 1.0, green: 0.84, blue: 0.60, alpha: 1), intensity: 1.65)
-        diffuser.position = SCNVector3(Float(x), 7.29, Float(z - 2.52))
-        scene.rootNode.addChildNode(diffuser)
+        diffuser.position = SCNVector3(0, 7.29, -2.52)
+        group.addChildNode(diffuser)
 
-        // Shadowless road-light pools only near the starting neighborhood.
-        // The other streetlights have emissive diffusers but no GPU light.
-        if abs(x) < 200 && abs(z) < 200 {
-            let lamp = SCNLight()
-            lamp.type = .omni
-            lamp.intensity = 530
-            lamp.castsShadow = false
-            lamp.attenuationStartDistance = 2
-            lamp.attenuationEndDistance = 18
-            lamp.color = UIColor(red: 1, green: 0.80, blue: 0.61, alpha: 1)
-            diffuser.light = lamp
-        }
+        return group.flattenedClone()
+    }
+
+    private func addStreetLight(x: Double, z: Double) {
+        let node = lampMesh.clone()
+        node.position = SCNVector3(Float(x),0,Float(z))
+        scene.rootNode.addChildNode(node)
+        guard abs(x) < 200, abs(z) < 200 else { return }
+        let lamp = SCNLight()
+        lamp.type = .omni
+        lamp.intensity = 530
+        lamp.castsShadow = false
+        lamp.attenuationStartDistance = 2
+        lamp.attenuationEndDistance = 18
+        lamp.color = UIColor(red: 1, green: 0.80, blue: 0.61, alpha: 1)
+        let source = SCNNode()
+        source.light = lamp
+        source.position = SCNVector3(Float(x),7.29,Float(z-2.52))
+        streetLampLights.addChildNode(source)
     }
 
     private func buildCinematicDetails() {
@@ -875,13 +902,13 @@ final class DrivingWorld {
     }
 
     private func addBox(width: Double, height: Double, length: Double,
-                        at position: SCNVector3, material: SCNMaterial) {
+                        at position: SCNVector3, material: SCNMaterial, parent: SCNNode? = nil) {
         let geo = SCNBox(width: CGFloat(width), height: CGFloat(height),
                          length: CGFloat(length), chamferRadius: 0)
         geo.firstMaterial = material
         let node = SCNNode(geometry: geo)
         node.position = position
-        scene.rootNode.addChildNode(node)
+        (parent ?? scene.rootNode).addChildNode(node)
     }
 
     private func addCarBox(width: Double, height: Double, length: Double,

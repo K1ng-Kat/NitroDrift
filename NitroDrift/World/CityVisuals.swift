@@ -27,7 +27,7 @@ enum CityVisuals {
     }
 
     static func roadMaterial(horizontal: Bool = false) -> SCNMaterial {
-        let image = texture(size: 256) { context, size in
+        let image = packagedMap("diffuse") ?? texture(size: 256) { context, size in
             UIColor(red: 0.10, green: 0.105, blue: 0.125, alpha: 1).setFill()
             context.fill(CGRect(origin: .zero, size: size))
             var seed: UInt32 = 0x9AE310
@@ -51,7 +51,7 @@ enum CityVisuals {
             context.strokePath()
         }
         let mat = SCNMaterial()
-        mat.diffuse.contents = packagedMap("diffuse") ?? image
+        mat.diffuse.contents = image
         mat.diffuse.wrapS = .repeat
         mat.diffuse.wrapT = .repeat
         // Physical texel scale should not change drastically with road
@@ -172,8 +172,8 @@ enum CityVisuals {
             switch mode {
             case .day:
                 skyStops = [
-                    UIColor(red: 0.075, green: 0.28, blue: 0.60, alpha: 1),
-                    UIColor(red: 0.27, green: 0.58, blue: 0.85, alpha: 1),
+                    UIColor(red: 0.28, green: 0.54, blue: 0.79, alpha: 1),
+                    UIColor(red: 0.49, green: 0.74, blue: 0.89, alpha: 1),
                     UIColor(red: 0.75, green: 0.85, blue: 0.94, alpha: 1)
                 ]
             case .sunset:

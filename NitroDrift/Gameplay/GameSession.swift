@@ -128,8 +128,10 @@ final class GameSession: ObservableObject {
     @Published var ownedCarStyles: Set<Int>
     @Published var cameraMode = 0
     @Published var isPaused = false
-    @Published var sprintTime = 90.0
-    @Published var sprintDistance = 0.0
+    // The simulation keeps precise times and distances. The HUD samples them
+    // when the existing telemetry update is published.
+    var sprintTime = 90.0
+    var sprintDistance = 0.0
     @Published var bestSprintDistance: Int
     @Published var raceResult: RaceResult?
     @Published var hapticsEnabled: Bool
@@ -146,7 +148,7 @@ final class GameSession: ObservableObject {
     @Published var level: Int
     @Published var wins: Int
     @Published var bestCircuitTime: Double
-    @Published var raceElapsed = 0.0
+    var raceElapsed = 0.0
     @Published var damage = 0.0
     @Published var policeNearby = false
     @Published var playerX = 0.0
@@ -187,7 +189,7 @@ final class GameSession: ObservableObject {
         wins = s.integer(forKey: "wins")
         bestCircuitTime = s.double(forKey: "bestCircuitTime")
         handlingAssist = s.object(forKey: "handlingAssist") as? Bool ?? true
-        easyDrive = s.object(forKey: "easyDrive") as? Bool ?? false
+        easyDrive = s.bool(forKey: "easyDrive")
     }
 
     func start(_ selection: DriveMode) {

@@ -23,17 +23,37 @@ wait_for() {
     return 1
 }
 capture() {
-    local quality="$1" weather="$2" auto="$3" stem="$4"
+    local quality="$1" weather="$2" auto="$3" stem="$4" car="$5"
     xcrun simctl terminate "$device" "$bundle" 2>/dev/null || true
     rm -f "$container/tmp/nd-frame-ready" "$container/tmp/nd-cadence.json"
     xcrun simctl launch "$device" "$bundle" -streetWeather "$weather" -streetTimeOfDay Daylight \
-        -graphicsQuality "$quality" -easyDrive "$auto" -screenRefractionEnabled YES -ndAutomatedDrive
-    wait_for "$container/tmp/nd-frame-ready"
+        -graphicsQuality "$quality" -carStyle "$car" -easyDrive "$auto" -screenRefractionEnabled YES -ndAutomatedDrive
+    if ! wait_for "$container/tmp/nd-frame-ready"; then
+        xcrun simctl io "$device" screenshot "$out/$stem-timeout.png" || true
+        [[ ! -f "$container/tmp/nd-cadence.json" ]] || cp "$container/tmp/nd-cadence.json" "$out/$stem.json"
+        return 1
+    fi
     xcrun simctl io "$device" screenshot "$out/$stem.png"
     wait_for "$container/tmp/nd-cadence.json"
     cp "$container/tmp/nd-cadence.json" "$out/$stem.json"
-    cat "$out/$stem.json"
+    python3 - "$out/$stem.json" "$auto" <<'PY_CHECK'
+import json, sys
+from pathlib import Path
+r=json.loads(Path(sys.argv[1]).read_text())
+print(r)
+ratio=r["viewportWidth"]/r["viewportHeight"]
+native=max(r["nativeWidth"],r["nativeHeight"])/min(r["nativeWidth"],r["nativeHeight"])
+assert ratio>1 and abs(ratio/native-1)<.06, "Scene does not fill the landscape display"
+assert r["easyDrive"]==(sys.argv[2]=="YES"), "Requested driving mode was not selected"
+assert not r["easyDrive"] or r["peakKPH"]>=5, "Easy Drive did not move the vehicle"
+assert r["wheelPivots"]==4 and r["authoredCity"] and r["residentStreets"]>0
+PY_CHECK
+    # simctl on a portrait-oriented host can store landscape contents sideways.
+    local width height
+    width="$(sips -g pixelWidth "$out/$stem.png" | awk '/pixelWidth:/ {print $2}')"
+    height="$(sips -g pixelHeight "$out/$stem.png" | awk '/pixelHeight:/ {print $2}')"
+    if (( height > width )); then sips --rotate 270 "$out/$stem.png" >/dev/null; fi
 }
-capture cinematic Dry NO daylight-chase
-capture balanced Dry YES easy-drive
-capture ultra Rain YES ultra-rain
+capture cinematic Dry NO daylight-chase 0
+capture balanced Dry YES easy-drive 1
+capture ultra Rain YES ultra-rain 2

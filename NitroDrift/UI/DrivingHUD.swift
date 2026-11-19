@@ -14,7 +14,7 @@ struct DrivingHUD: View {
             let narrow = geo.size.width < 705
             let steerWidth: CGFloat = narrow ? 76 : compact ? 92 : 108
             let pedalWidth: CGFloat = narrow ? 62 : compact ? 72 : 84
-            let controlHeight: CGFloat = compact ? 71 : 88
+            let controlHeight: CGFloat = max(44, min(compact ? 65 : 77, geo.size.height * 0.17))
             let edge: CGFloat = narrow ? 8 : compact ? 12 : 23
             let spacing: CGFloat = narrow ? 5 : 9
             ZStack {
@@ -104,8 +104,11 @@ struct DrivingHUD: View {
                             } else {
                                 Text("PAUSED")
                                     .font(.system(size: 25, weight: .black, design: .rounded))
-                                Toggle("Easy Drive", isOn: Binding(get: { session.easyDrive }, set: session.setEasyDrive))
-                                    .tint(NitroTheme.cyan)
+                                HStack {
+                                    Toggle("Easy Drive", isOn: Binding(get: { session.easyDrive }, set: session.setEasyDrive))
+                                        .tint(NitroTheme.cyan)
+                                    actionIcon("arrow.counterclockwise", accessibility: "Reset car") { session.resetCar(); session.togglePause() }
+                                }
                                 NitroButton(title: "Resume", symbol: "play.fill", highlighted: true) {
                                     session.togglePause()
                                 }
@@ -127,49 +130,42 @@ struct DrivingHUD: View {
     }
 
     private func topHUD(compact: Bool) -> some View {
-        HStack(spacing: compact ? 7 : 11) {
-            actionIcon("pause.fill", accessibility: "Pause") { session.togglePause() }
-
-            VStack(alignment: .leading, spacing: 0) {
-                Text((session.mode == .circuit || session.mode == .online) ? "\(session.racePosition)/2 POS" : session.mode.rawValue.uppercased())
-                    .font(.system(size: compact ? 12 : 16, weight: .black, design: .rounded))
-                    .foregroundStyle(.white)
-                Text(session.district + (session.weather == .rain ? " · RAIN" : ""))
-                    .font(.system(size: compact ? 8 : 10, weight: .heavy, design: .monospaced))
-                    .foregroundStyle(NitroTheme.cyan)
-            }
-            .padding(.horizontal, 7)
-
-            Spacer(minLength: 2)
-
-            SpeedReadout(session: session, compact: compact)
-
-            Spacer(minLength: 2)
-
-            VStack(alignment: .trailing, spacing: 1) {
-                if session.mode != .freeRide {
-                    Text(String(format: "%.1f SEC", session.sprintTime))
-                        .font(.system(size: compact ? 13 : 18, weight: .black, design: .monospaced))
-                        .foregroundStyle(session.sprintTime < 15 ? NitroTheme.orange : .white)
-                } else {
-                    Text("\(session.cash) CR")
-                        .font(.system(size: compact ? 11 : 14, weight: .black, design: .monospaced))
+        ZStack {
+            HStack(spacing: compact ? 5 : 10) {
+                actionIcon("pause.fill", accessibility: "Pause") { session.togglePause() }
+                VStack(alignment: .leading, spacing: 1) {
+                    Text((session.mode == .circuit || session.mode == .online) ? "\(session.racePosition)/2 POS" : session.mode.rawValue.uppercased())
+                        .font(.system(size: compact ? 11 : 15, weight: .black, design: .rounded))
+                    Text(session.district + (session.weather == .rain ? " · RAIN" : ""))
+                        .font(.system(size: compact ? 8 : 9, weight: .bold))
+                        .foregroundStyle(NitroTheme.cyan)
                 }
-                Text(session.mode == .freeRide ? "NITRO DRIFT" : detail)
-                    .font(.system(size: compact ? 8 : 10, weight: .bold, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.78))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.6)
+                .lineLimit(1)
+                .minimumScaleFactor(0.64)
+                .frame(width: compact ? 73 : 105, alignment: .leading)
+                Spacer(minLength: 4)
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(session.mode == .freeRide ? "\(session.cash) CR" : String(format: "%.1f SEC", session.sprintTime))
+                        .font(.system(size: compact ? 12 : 15, weight: .black, design: .rounded))
+                        .monospacedDigit()
+                    if session.mode != .freeRide {
+                        Text(detail).font(.system(size: compact ? 8 : 10, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.82))
+                    }
+                }
+                .lineLimit(1)
+                .minimumScaleFactor(0.60)
+                .frame(width: compact ? 80 : 119, alignment: .trailing)
+                actionIcon("camera.rotate.fill", accessibility: "Change camera") { session.cycleCamera() }
             }
-            .padding(.horizontal, 7)
-
+            SpeedReadout(session: session, compact: compact)
+        }
+        .overlay(alignment: .topLeading) {
             MiniMapView(session: session)
-                .frame(width: compact ? 44 : 58, height: compact ? 44 : 58)
-                .opacity(0.84)
+                .frame(width: compact ? 42 : 55, height: compact ? 42 : 55)
+                .opacity(0.72)
+                .offset(y: compact ? 49 : 61)
                 .allowsHitTesting(false)
-
-            actionIcon("camera.rotate.fill", accessibility: "Change camera") { session.cycleCamera() }
-            actionIcon("arrow.counterclockwise", accessibility: "Reset car") { session.resetCar() }
         }
     }
 

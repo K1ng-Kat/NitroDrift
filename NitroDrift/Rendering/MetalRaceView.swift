@@ -108,7 +108,7 @@ final class MetalRaceView: MTKView, MTKViewDelegate {
                              viewport: CGRect(origin: .zero, size: drawableSize),
                              commandBuffer: buffer, passDescriptor: pass)
         #if DEBUG
-        capture.record(buffer, time: frameTime, world: captureWorld, session: captureSession)
+        capture.record(buffer, time: frameTime, view: self, world: captureWorld, session: captureSession)
         #endif
         buffer.present(drawable)
         buffer.commit()
