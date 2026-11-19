@@ -65,6 +65,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/nd-package/Payload"
           mv "$RUNNER_TEMP/nd-build/Release-iphoneos/NitroDrift.app" "$RUNNER_TEMP/nd-package/Payload/"
           cd "$RUNNER_TEMP/nd-package"
+          plutil -extract UILaunchScreen xml1 -o /dev/null Payload/NitroDrift.app/Info.plist
           /usr/bin/zip -q -r -n .ndroad:.usdz:.jpg:.png:.hdr "$RUNNER_TEMP/NitroDrift-unsigned.ipa" Payload
           python3 - <<'PY_SIZE'
           from pathlib import Path
