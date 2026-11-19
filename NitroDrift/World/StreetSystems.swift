@@ -26,6 +26,7 @@ final class StreetSystems {
 
     private let scene: SCNScene
     private var traffic: [MovingCar] = []
+    private var vehicleTemplates: [CarPaint: SCNNode] = [:]
     private var rival: MovingCar?
     private var police: [MovingCar] = []
     private var gates: [SCNNode] = []
@@ -56,15 +57,14 @@ final class StreetSystems {
         session.racePosition = 1
 
         if mode == .circuit {
-            var bot = MovingCar(node: makeVehicle(color: UIColor(red: 1, green: 0.33, blue: 0.14, alpha: 1)),
+            var bot = MovingCar(node: makeVehicle(finish: .inferno),
                                 x: 6, z: 35, heading: 0, speed: 20.5, lane: 0, horizontal: false, isPolice: false)
             bot.node.position = SCNVector3(6, 0, 35)
             bot.routeIndex = 0
             rival = bot
         } else if mode == .pursuit {
             for i in 0..<2 {
-                let bot = MovingCar(node: makeVehicle(color: UIColor(red: 0.13, green: 0.19, blue: 0.29, alpha: 1),
-                                                       police: true),
+                let bot = MovingCar(node: makeVehicle(finish: .midnight, police: true),
                                     x: Double(i * 7 - 4), z: Double(65 + i * 21),
                                     heading: 0, speed: 24, lane: 0, horizontal: false, isPolice: true)
                 police.append(bot)
@@ -120,8 +120,14 @@ final class StreetSystems {
                                x < -140 ? "WEST END" : (z < -140 ? "MIDTOWN" : "DOWNTOWN")
         }
 
-        guard coolDown <= 0 else { return 0 }
         let allCars = traffic + (rival.map { [$0] } ?? []) + police
+        for bot in allCars where abs(bot.x-x) < 52 && abs(bot.z-z) < 52 {
+            let turn = Float(bot.speed * dt / 0.35)
+            for wheel in bot.node.childNode(withName: "axles", recursively: false)?.childNodes ?? [] {
+                wheel.eulerAngles.x -= turn
+            }
+        }
+        guard coolDown <= 0 else { return 0 }
         for bot in allCars {
             let distance = hypot(bot.x - x, bot.z - z)
             if distance < 3.1 {
@@ -225,10 +231,8 @@ final class StreetSystems {
             let horizontal = index.isMultiple(of: 2)
             let coordinate = Double((index % 5 - 2) * 150) + (index.isMultiple(of: 3) ? 4.5 : -4.5)
             let crossing = Double((index * 53 % 620) - 310)
-            let shade = CGFloat(index % 6) * 0.11
-            let node = makeVehicle(color: UIColor(red: 0.18 + shade,
-                                                  green: 0.16 + CGFloat(index % 3) * 0.12,
-                                                  blue: 0.22 + CGFloat(index % 4) * 0.13, alpha: 1))
+            let finishes: [CarPaint] = [.midnight, .pearl, .violet, .inferno]
+            let node = makeVehicle(finish: finishes[index % finishes.count])
             let bot = MovingCar(node: node,
                                 x: horizontal ? crossing : coordinate,
                                 z: horizontal ? coordinate : crossing,
@@ -281,58 +285,41 @@ final class StreetSystems {
         return mat
     }
 
-    private func makeVehicle(color: UIColor, police: Bool = false) -> SCNNode {
-        let root = SCNNode()
-        let paint = VehicleArt.mat(color, metal: 0.57, rough: 0.23)
-        let lower = SculptedCarShell.make(paint: paint)
-        lower.scale = SCNVector3(0.96, 0.90, 0.96)
-        root.addChildNode(lower)
-
-        let tinted = VehicleArt.mat(UIColor(red: 0.045, green: 0.11, blue: 0.16, alpha: 1),
-                                    metal: 0.25, rough: 0.08)
-        let cabin = SCNNode(geometry: SCNBox(width: 1.67, height: 0.43,
-                                              length: 1.79, chamferRadius: 0.19))
-        cabin.geometry?.firstMaterial = tinted
-        cabin.position.y = 1.37
-        root.addChildNode(cabin)
-
-        let rubber = VehicleArt.mat(UIColor(red: 0.017, green: 0.021, blue: 0.026, alpha: 1),
-                                    metal: 0.08, rough: 0.88)
-        let rim = VehicleArt.mat(UIColor(red: 0.31, green: 0.34, blue: 0.38, alpha: 1),
-                                 metal: 0.82, rough: 0.26)
-        for x: Float in [-1.01, 1.01] {
-            for z: Float in [-1.44, 1.44] {
-                let wheel = SCNNode(geometry: SCNCylinder(radius: 0.42, height: 0.29))
-                wheel.geometry?.firstMaterial = rubber
-                wheel.eulerAngles.z = .pi / 2
-                wheel.position = SCNVector3(x, 0.42, z)
-                root.addChildNode(wheel)
-
-                let wheelCenter = SCNNode(geometry: SCNCylinder(radius: 0.21, height: 0.31))
-                wheelCenter.geometry?.firstMaterial = rim
-                wheelCenter.eulerAngles.z = .pi / 2
-                wheelCenter.position = SCNVector3(x, 0.42, z)
-                root.addChildNode(wheelCenter)
-            }
+    private func vehicleTemplate(finish: CarPaint) -> SCNNode {
+        if let template = vehicleTemplates[finish] { return template }
+        let style: CarStyle = (finish == .violet || finish == .pearl) ? .hyper : .sport
+        let model = SCNNode()
+        let paint = VehicleArt.mat(finish.color, metal: 0.55, rough: 0.24)
+        let assembly = VehicleAssetLoader.installIfAvailable(style: style, into: model,
+                                                           paint: paint, finish: finish)
+                       ?? VehicleArt.install(into: model, paint: paint)
+        for jet in assembly.flames { jet.removeFromParentNode() }
+        let axles = SCNNode()
+        axles.name = "axles"
+        for wheel in assembly.wheels {
+            let pose = wheel.convertTransform(SCNMatrix4Identity, to: model)
+            wheel.removeFromParentNode()
+            let rolling = wheel.flattenedClone()
+            rolling.transform = pose
+            axles.addChildNode(rolling)
         }
+        let template = SCNNode()
+        template.addChildNode(model.flattenedClone())
+        template.addChildNode(axles)
+        template.addChildNode(CityVisuals.vehicleShadow())
+        vehicleTemplates[finish] = template
+        return template
+    }
 
-        let white = glowing(UIColor(red: 0.95, green: 0.96, blue: 0.85, alpha: 1))
-        let tail = glowing(UIColor(red: 0.95, green: 0.07, blue: 0.09, alpha: 1))
-        for x: Float in [-0.70, 0.70] {
-            for z: Float in [-2.17, 2.17] {
-                let lamp = SCNNode(geometry: SCNBox(width: 0.44, height: 0.10,
-                                                      length: 0.05, chamferRadius: 0.02))
-                lamp.geometry?.firstMaterial = z < 0 ? white : tail
-                lamp.position = SCNVector3(x, 0.86, z)
-                root.addChildNode(lamp)
-            }
-        }
+    private func makeVehicle(finish: CarPaint, police: Bool = false) -> SCNNode {
+        let root = vehicleTemplate(finish: finish).clone()
         if police {
+            let roofHeight = root.boundingBox.max.y
             for x: Float in [-0.29, 0.29] {
                 let beacon = SCNNode(geometry: SCNBox(width: 0.50, height: 0.18,
                                                         length: 0.35, chamferRadius: 0.06))
                 beacon.geometry?.firstMaterial = glowing(x < 0 ? .red : .blue)
-                beacon.position = SCNVector3(x, 1.72, 0)
+                beacon.position = SCNVector3(x, roofHeight + 0.05, 0)
                 root.addChildNode(beacon)
             }
         }

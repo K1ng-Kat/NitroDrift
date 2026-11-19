@@ -758,15 +758,16 @@ final class DrivingWorld {
     }
 
     private func buildDistantSkyline() {
-        // Distant skyline silhouettes add depth beyond the drivable grid.
-        // Shared meshes/materials keep the extra draw cost bounded.
-        let silhouettes: [SCNMaterial] = (0..<4).map { index in
-            let mat = material(UIColor(red: 0.10 + CGFloat(index) * 0.018,
-                                       green: 0.13 + CGFloat(index) * 0.018,
-                                       blue: 0.18 + CGFloat(index) * 0.018,
-                                       alpha: 1), roughness: 0.85)
-            mat.lightingModel = .physicallyBased
-            return mat
+        let glazing = (0..<4).map { AuthoredCity.skylineMaterial(for: $0) }
+        let trim = material(UIColor(red: 0.47, green: 0.55, blue: 0.60, alpha: 1), roughness: 0.47)
+        func towerSection(_ w: CGFloat, _ h: CGFloat, _ d: CGFloat, y: CGFloat, surface: SCNMaterial) -> SCNNode {
+            let box = SCNBox(width: w, height: h, length: d, chamferRadius: min(0.7, h/4))
+            box.chamferSegmentCount = 1
+            box.firstMaterial = surface
+            let node = SCNNode(geometry: box)
+            node.position.y = Float(y)
+            node.castsShadow = false
+            return node
         }
         var seed: UInt64 = 0x71D1F7
         func next(_ limit: Int) -> Int {
@@ -776,18 +777,25 @@ final class DrivingWorld {
         for side in 0..<4 {
             let edgeGroup = SCNNode()
             for index in 0..<34 {
-                let height = CGFloat(35 + next(95))
-                let width = CGFloat(14 + next(24))
-                let depth = CGFloat(17 + next(25))
-                let mesh = SCNBox(width: width, height: height, length: depth, chamferRadius: 0.3)
-                mesh.firstMaterial = silhouettes[next(silhouettes.count)]
-                let node = SCNNode(geometry: mesh)
+                let band = next(4)
+                let height = CGFloat(27 + band*21 + next(26))
+                let width = CGFloat(15 + next(19))
+                let depth = CGFloat(18 + next(23))
+                let node = SCNNode()
+                node.addChildNode(towerSection(width, height, depth, y: height/2, surface: glazing[band]))
+                let crown = height * (index.isMultiple(of: 4) ? 0.24 : 0.11)
+                node.addChildNode(towerSection(width*0.72, crown, depth*0.74,
+                                               y: height+crown/2, surface: glazing[band]))
+                node.addChildNode(towerSection(width*0.75, 1.1, depth*0.77,
+                                               y: height+crown+0.5, surface: trim))
+                if index.isMultiple(of: 4) {
+                    node.addChildNode(towerSection(0.8, 9.0, 0.8, y: height+crown+5.4, surface: trim))
+                }
                 let axis = Float(-510 + index * 31)
-                let edge: Float = side.isMultiple(of: 2) ? -565 : 565
-                node.position = side < 2
-                    ? SCNVector3(axis, Float(height / 2), edge)
-                    : SCNVector3(edge, Float(height / 2), axis)
-                node.castsShadow = false
+                let edge = Float(525 + next(62)) * (side.isMultiple(of: 2) ? -1 : 1)
+                // Keep a clear horizon through the centerline of each boulevard.
+                if abs(axis) < 21 { continue }
+                node.position = side < 2 ? SCNVector3(axis, 0, edge) : SCNVector3(edge, 0, axis)
                 edgeGroup.addChildNode(node)
             }
             distantCity.addChildNode(edgeGroup.flattenedClone())
@@ -810,20 +818,7 @@ final class DrivingWorld {
         nitroLight = boost
         vehicleVisual.name = "car-visual-forward-minus-z"
         car.addChildNode(vehicleVisual)
-        // Soft chassis/tire contact shadow makes the car look grounded.
-        let shadowMaterial = SCNMaterial()
-        shadowMaterial.diffuse.contents = CityVisuals.contactShadow()
-        shadowMaterial.lightingModel = .constant
-        shadowMaterial.transparencyMode = .dualLayer
-        shadowMaterial.writesToDepthBuffer = false
-        shadowMaterial.isDoubleSided = true
-        let shadow = SCNNode(geometry: SCNPlane(width: 3.3, height: 5.5))
-        shadow.geometry?.firstMaterial = shadowMaterial
-        shadow.position = SCNVector3(0, 0.076, 0)
-        shadow.eulerAngles.x = -.pi / 2
-        shadow.castsShadow = false
-        shadow.categoryBitMask = 2
-        car.addChildNode(shadow)
+        car.addChildNode(CityVisuals.vehicleShadow())
         installCarGeometry(style: .street)
     }
 

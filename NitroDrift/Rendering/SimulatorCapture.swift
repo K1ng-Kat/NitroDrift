@@ -18,18 +18,21 @@ final class SimulatorCapture {
         guard enabled, !finished, let session, session.phase == .driving,
               let world, !world.hasStreamableRoads || world.residentRoads > 0,
               let screen = view.window?.windowScene?.screen else { return }
+        // Exercise the same gas input used by the touch pedal in manual mode.
+        if !session.easyDrive { session.input.gas = true }
         frames += 1
         peakSpeed = max(peakSpeed,session.speedKPH)
         guard frames > 45 else { return }
         if let previous, time > previous { intervals.append((time-previous)*1000) }
         previous = time
         let dir = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
-        if !wroteMarker && (!session.easyDrive || peakSpeed >= 5) {
+        if !wroteMarker && peakSpeed >= 5 {
             wroteMarker = true
             write(Data("ready".utf8), to: dir.appendingPathComponent("nd-frame-ready"), after: buffer)
         }
         guard intervals.count >= 120 else { return }
         finished = true
+        if !session.easyDrive { session.input.gas = false }
         let sorted = intervals.sorted()
         let report: [String: Any] = [
             "displayIntervalP50ms": sorted[sorted.count/2], "displayIntervalP95ms": sorted[sorted.count*95/100],

@@ -75,6 +75,22 @@ enum CityVisuals {
         return mat
     }
 
+    static let droplet: UIImage = {
+        let size = CGSize(width: 96, height: 96)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = false
+        return UIGraphicsImageRenderer(size: size, format: format).image { render in
+            let colors = [UIColor.white.cgColor, UIColor.white.withAlphaComponent(0.78).cgColor,
+                          UIColor.white.withAlphaComponent(0).cgColor] as CFArray
+            guard let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                                            colors: colors, locations: [0, 0.56, 1]) else { return }
+            let center = CGPoint(x: 48, y: 48)
+            render.cgContext.drawRadialGradient(gradient, startCenter: center, startRadius: 0,
+                                                endCenter: center, endRadius: 47, options: [])
+        }
+    }()
+
     private static let shadowImage: UIImage = {
         let size = CGSize(width: 256, height: 512)
         let renderer = UIGraphicsImageRenderer(size: size)
@@ -82,12 +98,12 @@ enum CityVisuals {
             let cg = render.cgContext
             cg.clear(CGRect(origin: .zero, size: size))
             let colors = [
-                UIColor.black.withAlphaComponent(0.54).cgColor,
-                UIColor.black.withAlphaComponent(0.21).cgColor,
+                UIColor.black.withAlphaComponent(0.91).cgColor,
+                UIColor.black.withAlphaComponent(0.55).cgColor,
                 UIColor.black.withAlphaComponent(0).cgColor
             ] as CFArray
             if let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
-                                         colors: colors, locations: [0, 0.53, 1]) {
+                                         colors: colors, locations: [0, 0.60, 1]) {
                 cg.saveGState()
                 cg.translateBy(x: size.width * 0.5, y: size.height * 0.5)
                 cg.scaleBy(x: size.width * 0.44, y: size.height * 0.46)
@@ -100,7 +116,27 @@ enum CityVisuals {
         }
     }()
 
-    static func contactShadow() -> UIImage { shadowImage }
+    private static let shadowPlane: SCNPlane = {
+        let material = SCNMaterial()
+        material.diffuse.contents = shadowImage
+        material.lightingModel = .constant
+        material.writesToDepthBuffer = false
+        material.blendMode = .alpha
+        let plane = SCNPlane(width: 3.5, height: 6.0)
+        plane.firstMaterial = material
+        return plane
+    }()
+
+    static func vehicleShadow() -> SCNNode {
+        let node = SCNNode(geometry: shadowPlane)
+        // The top of the streamed road is at 0.092 m.
+        node.position.y = 0.115
+        node.eulerAngles.x = -.pi / 2
+        node.castsShadow = false
+        node.renderingOrder = 3
+        node.categoryBitMask = 2
+        return node
+    }
 
     // Cached PBR normal maps. Small periodic sine derivatives produce seamless
     // tiled road microdetail without shipping copyrighted texture files.

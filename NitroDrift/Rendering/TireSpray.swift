@@ -15,6 +15,7 @@ final class TireSpray {
             emitter.particleLifeSpanVariation = 0.12
             emitter.particleVelocity = 3.8
             emitter.particleVelocityVariation = 2.4
+            emitter.particleImage = CityVisuals.droplet
             emitter.particleSize = 0.045
             emitter.particleSizeVariation = 0.035
             emitter.particleColor = UIColor(red: 0.69, green: 0.79, blue: 0.87, alpha: 0.34)

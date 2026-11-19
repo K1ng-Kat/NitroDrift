@@ -45,7 +45,7 @@ ratio=r["viewportWidth"]/r["viewportHeight"]
 native=max(r["nativeWidth"],r["nativeHeight"])/min(r["nativeWidth"],r["nativeHeight"])
 assert ratio>1 and abs(ratio/native-1)<.06, "Scene does not fill the landscape display"
 assert r["easyDrive"]==(sys.argv[2]=="YES"), "Requested driving mode was not selected"
-assert not r["easyDrive"] or r["peakKPH"]>=5, "Easy Drive did not move the vehicle"
+assert r["peakKPH"]>=5, "Vehicle did not accelerate with the selected controls"
 assert r["wheelPivots"]==4 and r["authoredCity"] and r["residentStreets"]>0
 PY_CHECK
     # simctl on a portrait-oriented host can store landscape contents sideways.

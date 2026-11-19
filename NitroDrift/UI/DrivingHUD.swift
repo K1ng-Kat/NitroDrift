@@ -13,10 +13,12 @@ struct DrivingHUD: View {
             let compact = geo.size.width < 790
             let narrow = geo.size.width < 705
             let steerWidth: CGFloat = narrow ? 76 : compact ? 92 : 108
-            let pedalWidth: CGFloat = narrow ? 62 : compact ? 72 : 84
+            let pedalWidth: CGFloat = session.easyDrive ? (narrow ? 54 : compact ? 65 : 74)
+                                                      : (narrow ? 46 : compact ? 54 : 61)
             let controlHeight: CGFloat = max(44, min(compact ? 65 : 77, geo.size.height * 0.17))
             let edge: CGFloat = narrow ? 8 : compact ? 12 : 23
-            let spacing: CGFloat = narrow ? 5 : 9
+            let spacing: CGFloat = narrow ? 5 : 7
+            let nitroHeight = max(44, controlHeight - 11)
             ZStack {
                 if session.isBoosting && !reduceMotion && !session.isPaused {
                     SpeedLines(intensity: min(1, Double(session.speedKPH) / 190), boosting: true)
@@ -56,9 +58,9 @@ struct DrivingHUD: View {
                             VStack(spacing: 5) {
                                 HoldDriveButton(label: "NITRO", symbol: "bolt.fill",
                                                 color: NitroTheme.cyan,
-                                                width: pedalWidth, height: controlHeight - 11,
+                                                width: pedalWidth, height: nitroHeight,
                                                 onPressed: { session.pressNitro($0) })
-                                    .frame(width: pedalWidth, height: controlHeight - 11)
+                                    .frame(width: pedalWidth, height: nitroHeight)
                                 GeometryReader { progress in
                                     ZStack(alignment: .leading) {
                                         Capsule().fill(.white.opacity(0.17))

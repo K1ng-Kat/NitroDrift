@@ -5,7 +5,7 @@ import numpy as np
 from PIL import Image
 
 VEHICLES=Path(__file__).resolve().parents[1]/"NitroDrift/Assets.scnassets/Vehicles"
-COLORS={"electricBlue":(75,157,206),"inferno":(208,61,48),"pearl":(206,214,217),
+COLORS={"electricBlue":(39,97,146),"inferno":(208,61,48),"pearl":(206,214,217),
         "venom":(105,160,77),"midnight":(54,66,83),"violet":(143,97,181)}
 
 
@@ -68,7 +68,17 @@ def bake(file,cache):
     light=np.clip(luminance/reference,.35,1.35)[...,None]
     for name,tint in COLORS.items():
         accent=np.array((34,48,63) if name=="pearl" else (202,214,218))
-        body=(np.array(tint)*(1-stripe)+accent*stripe)*light
+        finish_tint=np.array(tint,dtype=np.float32)
+        if file.stem=="StreetGT":
+            # Follow the rear bumper pressing and taper the sill accent along both doors.
+            rear=np.clip((np.nan_to_num(y)-1.50)/.34,0,1)
+            sill=np.clip((np.abs(np.nan_to_num(x))-.69)/.15,0,1)
+            height=np.nan_to_num(z,nan=1.5)
+            inset=np.maximum(rear*np.clip((.81-height)/.095,0,1),
+                             sill*np.clip((.44-height)/.065,0,1))
+            gunmetal=finish_tint*.22+np.array([7,11,17])
+            finish_tint=finish_tint+(gunmetal-finish_tint)*inset[...,None]
+        body=(finish_tint*(1-stripe)+accent*stripe)*light
         finish=rgb*(1-paint)+body*paint
         Image.fromarray(np.clip(finish,0,255).astype("uint8")).save(out/f"{file.stem}-{name}.jpg",quality=92,subsampling=0)
     print(file.stem,"body pixels",int((paint>.8).sum()),"illuminated lens pixels",int(rear_lens.sum()),flush=True)

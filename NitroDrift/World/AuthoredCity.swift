@@ -6,6 +6,7 @@ enum AuthoredCity {
     private static let folder = "Assets.scnassets/City"
     private static let glazing = SCNMaterial()
     private static let silver = SCNMaterial()
+    private static var skylineGlazing: [Int: SCNMaterial] = [:]
 
     private static func image(_ name: String, _ ext: String) -> UIImage? {
         guard let url = Bundle.main.url(forResource: name, withExtension: ext, subdirectory: folder) else { return nil }
@@ -29,8 +30,21 @@ enum AuthoredCity {
         }
     }
 
+    static func skylineMaterial(for band: Int) -> SCNMaterial {
+        if let material = skylineGlazing[band] { return material }
+        let base = band.isMultiple(of: 2) ? glazing : silver
+        guard let material = base.copy() as? SCNMaterial else { return base }
+        let tiling = SCNMatrix4MakeScale(Float(2 + band % 3), Float(4 + band * 2), 1)
+        material.diffuse.contentsTransform = tiling
+        material.emission.contentsTransform = tiling
+        material.multiply.contents = UIColor(white: 0.71 + CGFloat(band) * 0.065, alpha: 1)
+        skylineGlazing[band] = material
+        return material
+    }
+
     static func setLighting(_ time: StreetTimeOfDay) {
-        for mat in [glazing, silver] { mat.emission.intensity = time == .night ? 0.76 : time == .sunset ? 0.16 : 0.015 }
+        let intensity: CGFloat = time == .night ? 0.76 : time == .sunset ? 0.16 : 0.015
+        for mat in [glazing, silver] + Array(skylineGlazing.values) { mat.emission.intensity = intensity }
     }
 
     private static func load(_ name: String) -> SCNNode? {
@@ -92,6 +106,11 @@ enum AuthoredCity {
                 let tile = tiles[(xi*7+zi)%tiles.count].clone()
                 tile.position = SCNVector3(Float(xi*150-375),0,Float(zi*150-375))
                 if (xi+zi).isMultiple(of: 2) { tile.eulerAngles.y = .pi }
+                // Set the waterfront blocks back on the west side of the opening straight.
+                if xi == 2 && (zi == 2 || zi == 3) {
+                    tile.scale = SCNVector3(0.79, zi == 2 ? 0.68 : 0.84, 0.83)
+                    tile.eulerAngles.y += .pi/2
+                }
                 scene.rootNode.addChildNode(tile)
             }
         }
