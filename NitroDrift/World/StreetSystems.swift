@@ -121,10 +121,23 @@ final class StreetSystems {
         }
 
         let allCars = traffic + (rival.map { [$0] } ?? []) + police
-        for bot in allCars where abs(bot.x-x) < 52 && abs(bot.z-z) < 52 {
-            let turn = Float(bot.speed * dt / 0.35)
-            for wheel in bot.node.childNode(withName: "axles", recursively: false)?.childNodes ?? [] {
-                wheel.eulerAngles.x -= turn
+        for bot in allCars {
+            let distance = max(abs(bot.x-x), abs(bot.z-z))
+            let nearby = distance < 58
+            let outside = distance > 230
+            if bot.node.isHidden != outside { bot.node.isHidden = outside }
+            guard !outside else { continue }
+            if let body = bot.node.childNode(withName: "close-body", recursively: false), body.isHidden == nearby {
+                body.isHidden = !nearby
+                bot.node.childNode(withName: "axles", recursively: false)?.isHidden = !nearby
+                bot.node.childNode(withName: "distant-body", recursively: false)?.isHidden = nearby
+                bot.node.childNode(withName: "ground-contact", recursively: false)?.isHidden = !nearby
+            }
+            if nearby {
+                let turn = Float(bot.speed * dt / 0.35)
+                for wheel in bot.node.childNode(withName: "axles", recursively: false)?.childNodes ?? [] {
+                    wheel.eulerAngles.x -= turn
+                }
             }
         }
         guard coolDown <= 0 else { return 0 }
@@ -304,7 +317,19 @@ final class StreetSystems {
             axles.addChildNode(rolling)
         }
         let template = SCNNode()
-        template.addChildNode(model.flattenedClone())
+        let detailed = model.flattenedClone()
+        detailed.name = "close-body"
+        template.addChildNode(detailed)
+        let silhouette = SculptedCarShell.make(paint: paint)
+        let cabin = SCNBox(width: 1.55, height: 0.39, length: 1.75, chamferRadius: 0.18)
+        cabin.firstMaterial = VehicleArt.mat(UIColor(white: 0.095, alpha: 1), metal: 0.34, rough: 0.16)
+        let roof = SCNNode(geometry: cabin)
+        roof.position.y = 1.27
+        silhouette.addChildNode(roof)
+        let distant = silhouette.flattenedClone()
+        distant.name = "distant-body"
+        distant.isHidden = true
+        template.addChildNode(distant)
         template.addChildNode(axles)
         template.addChildNode(CityVisuals.vehicleShadow())
         vehicleTemplates[finish] = template

@@ -6,6 +6,10 @@ import SceneKit
 /// All art is generated in code, so the first build needs no external assets.
 final class DrivingWorld {
     let scene = SCNScene()
+    #if DEBUG
+    var holdingCaptureFrame = false
+    private(set) var capturedDrivingTime = 0.0
+    #endif
     var activeWheelPivots: Int { wheelNodes.count }
     var authoredBlocksLoaded: Bool { usingAuthoredCity }
     var residentRoads: Int { roadSurfaces.activeCount }
@@ -129,7 +133,13 @@ final class DrivingWorld {
             installCarGeometry(style: session.carStyle)
         }
 
+        #if DEBUG
+        if holdingCaptureFrame { updateCamera(delta, session: session); return }
+        #endif
         if session.phase == .driving && !session.isPaused {
+            #if DEBUG
+            capturedDrivingTime += delta
+            #endif
             simulate(delta, session: session)
         } else {
             if session.isBoosting { session.isBoosting = false }
@@ -273,10 +283,20 @@ final class DrivingWorld {
                                   assist: session.handlingAssist, boosting: canNitro,
                                   surfaceGrip: session.weather == .rain ? 0.73 : 1.0)
         }
+        // Opposite portals have identical geometry at the seam, 37 m inside each tunnel.
+        let seam = dynamics.crossCitySeam()
+        if seam.x != 0 || seam.z != 0 {
+            let dx = Float(seam.x), dz = Float(seam.z)
+            camera.position.x += dx
+            camera.position.z += dz
+            cameraLookTarget.x += dx
+            cameraLookTarget.z += dz
+            cameraAnchor?.x += dx
+            cameraAnchor?.z += dz
+        }
         let roadX = abs(dynamics.x - (dynamics.x / 150.0).rounded() * 150.0)
         let roadZ = abs(dynamics.z - (dynamics.z / 150.0).rounded() * 150.0)
-        let withinMap = abs(dynamics.x) < 497 && abs(dynamics.z) < 497
-        if !withinMap || (roadX > 10.9 && roadZ > 10.9) {
+        if roadX > 10.9 && roadZ > 10.9 {
             // Soft collision with the curb/building perimeter. Keep heading
             // intact but do not teleport or propel through solid blocks.
             dynamics.x = previousX
@@ -522,6 +542,7 @@ final class DrivingWorld {
                    at: SCNVector3(0, 0.03, Float(coordinate)), material: asphaltEW)
 
         }
+        buildUnderpasses()
         RoadMarkings.install(in: scene, white: roadLines, yellow: centerLines)
 
         // Raised sidewalks along blocks, leaving intersections open.
@@ -755,6 +776,44 @@ final class DrivingWorld {
                     z + 14, painted)
             }
         }
+    }
+
+    private func buildUnderpasses() {
+        let concrete = material(UIColor(red: 0.30, green: 0.32, blue: 0.35, alpha: 1), roughness: 0.83)
+        let ribs = material(UIColor(red: 0.17, green: 0.21, blue: 0.26, alpha: 1), roughness: 0.51)
+        let lights = glowMaterial(UIColor(red: 1, green: 0.82, blue: 0.56, alpha: 1), intensity: 1.1)
+        let tunnel = SCNNode()
+        func beam(_ w: CGFloat, _ h: CGFloat, _ d: CGFloat, _ x: Float, _ y: Float, _ z: Float, _ mat: SCNMaterial) {
+            let mesh = SCNBox(width: w, height: h, length: d, chamferRadius: 0.06)
+            mesh.chamferSegmentCount = 1
+            mesh.firstMaterial = mat
+            let piece = SCNNode(geometry: mesh)
+            piece.position = SCNVector3(x,y,z)
+            tunnel.addChildNode(piece)
+        }
+        beam(25.2, 0.9, 78, 0, 7.2, 0, concrete)
+        for side: Float in [-1,1] {
+            beam(0.7, 7.0, 78, side*12.3, 3.5, 0, concrete)
+            beam(0.5, 0.65, 78, side*11.9, 0.33, 0, ribs)
+            for z in stride(from: -36, through: 36, by: 6) {
+                beam(0.19, 6.2, 0.31, side*11.9, 3.7, Float(z), ribs)
+                beam(0.18, 0.20, 2.0, side*11.75, 4.5, Float(z), lights)
+            }
+        }
+        let prototype = tunnel.flattenedClone()
+        let entrances = SCNNode()
+        for lane in stride(from: -450, through: 450, by: 150) {
+            let center = Float(CarDynamics.cityHalfLength + 2)
+            for edge in [-center,center] {
+                for horizontal in [false,true] {
+                    let gate = prototype.clone()
+                    gate.position = horizontal ? SCNVector3(edge,0,Float(lane)) : SCNVector3(Float(lane),0,edge)
+                    gate.eulerAngles.y = horizontal ? .pi/2 : 0
+                    entrances.addChildNode(gate)
+                }
+            }
+        }
+        scene.rootNode.addChildNode(entrances)
     }
 
     private func buildDistantSkyline() {

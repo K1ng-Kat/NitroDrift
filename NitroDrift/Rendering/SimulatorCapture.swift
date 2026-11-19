@@ -11,6 +11,9 @@ final class SimulatorCapture {
     private var demoBoosted = false
     private var intervals = [Double]()
     private var previous: CFTimeInterval?
+    private let dir = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+    private var courseReady = false
+    private var stillReleased = false
     private var frames = 0
     private var peakSpeed = 0
     private var wroteMarker = false
@@ -19,24 +22,39 @@ final class SimulatorCapture {
     func record(_ buffer: MTLCommandBuffer, time: CFTimeInterval, view: MTKView,
                 world: DrivingWorld?, session: GameSession?) {
         guard enabled, !finished, let session, session.phase == .driving,
-              let world, !world.hasStreamableRoads || world.residentRoads > 0,
-              let screen = view.window?.windowScene?.screen else { return }
+              let world, let screen = view.window?.windowScene?.screen else { return }
+        if !courseReady {
+            guard !world.hasStreamableRoads || world.residentRoads > 0 else {
+                world.holdingCaptureFrame = true
+                return
+            }
+            courseReady = true
+            world.holdingCaptureFrame = false
+        }
         if demo {
-            driveDemo(session, time: time, buffer: buffer)
+            driveDemo(session, world: world, buffer: buffer)
             return
         }
-        // Exercise the same gas input used by the touch pedal in manual mode.
         if !session.easyDrive { session.input.gas = true }
         frames += 1
-        peakSpeed = max(peakSpeed,session.speedKPH)
-        guard frames > 45 else { return }
+        peakSpeed = max(peakSpeed, session.speedKPH)
+        if !wroteMarker {
+            guard frames > 18, session.speedKPH >= 28 else { return }
+            wroteMarker = true
+            world.holdingCaptureFrame = true
+            write(Data("ready".utf8), to: dir.appendingPathComponent("nd-frame-ready"), after: buffer)
+            return
+        }
+        // simctl can take several seconds to acquire an image. Keep the measured approach
+        // on screen until the host has the frame, then benchmark a separate stretch of live driving.
+        if !stillReleased {
+            guard FileManager.default.fileExists(atPath: dir.appendingPathComponent("nd-frame-captured").path) else { return }
+            stillReleased = true
+            world.holdingCaptureFrame = false
+            previous = nil
+        }
         if let previous, time > previous { intervals.append((time-previous)*1000) }
         previous = time
-        let dir = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
-        if !wroteMarker && peakSpeed >= 5 {
-            wroteMarker = true
-            write(Data("ready".utf8), to: dir.appendingPathComponent("nd-frame-ready"), after: buffer)
-        }
         guard intervals.count >= 120 else { return }
         finished = true
         if !session.easyDrive { session.input.gas = false }
@@ -58,32 +76,32 @@ final class SimulatorCapture {
     }
 
     /// A separate recording run uses the live controls without affecting the timing samples.
-    private func driveDemo(_ session: GameSession, time: CFTimeInterval, buffer: MTLCommandBuffer) {
+    private func driveDemo(_ session: GameSession, world: DrivingWorld, buffer: MTLCommandBuffer) {
         if demoStart == nil {
-            let dir = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
-            session.input.brake = true
+            world.holdingCaptureFrame = true
             if !wroteMarker {
                 wroteMarker = true
                 write(Data("ready".utf8), to: dir.appendingPathComponent("nd-demo-ready"), after: buffer)
             }
             guard FileManager.default.fileExists(atPath: dir.appendingPathComponent("nd-demo-start").path) else { return }
-            demoStart = time
-            session.input.brake = false
+            demoStart = world.capturedDrivingTime
+            world.holdingCaptureFrame = false
         }
         guard let start = demoStart else { return }
-        let t = time-start
-        // A lane change, a short handbrake correction and one tap of the boost pedal.
-        switch t {
-        case 2.25..<2.75: session.input.touchSteering = 0.24
-        case 2.75..<3.42: session.input.touchSteering = -0.26
-        case 3.42..<3.7: session.input.touchSteering = 0.12
-        default: session.input.touchSteering = 0
-        }
-        session.input.handbrake = t >= 2.75 && t < 3.23
+        let t = world.capturedDrivingTime - start
+        let lane = t < 1.9 ? 0.0 : t < 5.4 ? 2.8 : 0.5
+        let heading = atan2(lane - session.playerX, 16) - session.playerHeading
+        session.input.touchSteering = min(0.28, max(-0.28, 1.5*atan2(sin(heading),cos(heading))))
+        session.input.handbrake = t >= 2.75 && t < 3.15
         if t >= 4.25 && !demoBoosted {
             demoBoosted = true
             session.pressNitro(true)
             session.pressNitro(false)
+        }
+        if t >= 7.1 {
+            world.holdingCaptureFrame = true
+            finished = true
+            write(Data("done".utf8), to: dir.appendingPathComponent("nd-demo-finished"), after: buffer)
         }
     }
 

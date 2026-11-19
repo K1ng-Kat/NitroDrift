@@ -129,6 +129,7 @@ enum CityVisuals {
 
     static func vehicleShadow() -> SCNNode {
         let node = SCNNode(geometry: shadowPlane)
+        node.name = "ground-contact"
         // The top of the streamed road is at 0.092 m.
         node.position.y = 0.115
         node.eulerAngles.x = -.pi / 2

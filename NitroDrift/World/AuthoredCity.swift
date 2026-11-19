@@ -62,12 +62,10 @@ enum AuthoredCity {
                         mat.metalness.contents = 0.73; mat.roughness.contents = 0.34
                     } else if role.contains("water") {
                         mat.roughness.contents = 0.17; mat.metalness.contents = 0.34
-                        mat.shaderModifiers = [.surface: """
-                        #pragma body
-                        float2 p = _surface.diffuseTexcoord * 8.0;
-                        float2 r = float2(sin(p.x*3.5 + p.y*0.7 + u_time), cos(p.y*5.1 - u_time*1.4));
-                        _surface.normal = normalize(_surface.normal + _surface.tangent * r.x * 0.065 + _surface.bitangent * r.y * 0.04);
-                        """]
+                        mat.normal.contents = CityVisuals.rainNormalMap()
+                        mat.normal.intensity = 0.13
+                        mat.normal.wrapS = .repeat
+                        mat.normal.wrapT = .repeat
                     } else if role.contains("lamps") {
                         mat.emission.contents = UIColor(red: 1, green: 0.75, blue: 0.43, alpha: 1)
                     } else {

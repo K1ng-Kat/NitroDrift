@@ -128,6 +128,17 @@ struct PhysicsSmoke {
             precondition(frame.speed.isFinite && frame.slipAngle.isFinite,
                          "Analog handbrake physics must be finite")
         }
+        var portalCar = CarDynamics()
+        portalCar.x = 3.5
+        portalCar.z = -495.75
+        portalCar.speed = 62
+        portalCar.heading = 0.09
+        let seam = portalCar.crossCitySeam()
+        precondition(seam.z == 990 && portalCar.x == 3.5 && portalCar.z == 494.25)
+        precondition(portalCar.speed == 62 && portalCar.heading == 0.09)
+        portalCar.x = 496.25
+        precondition(portalCar.crossCitySeam().x == -990 && portalCar.x == -493.75)
+        precondition(portalCar.crossCitySeam().x == 0)
         print("PASS: acceleration, braking, gears, cornering, wet grip, controller and stability")
     }
 }

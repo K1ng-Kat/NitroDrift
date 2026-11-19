@@ -41,6 +41,18 @@ struct CarDynamics {
 
     mutating func reset() { self = CarDynamics() }
 
+    static let cityHalfLength = 495.0
+
+    /// Corresponding lane and direction continue through the matching tunnel across the city.
+    mutating func crossCitySeam() -> (x: Double, z: Double) {
+        let edge = Self.cityHalfLength, length = 2*edge
+        let dx = x > edge ? -length : x < -edge ? length : 0
+        let dz = z > edge ? -length : z < -edge ? length : 0
+        x += dx
+        z += dz
+        return (dx, dz)
+    }
+
     mutating func impact(strength: Double) {
         let loss = max(0.08, 1 - min(0.95, max(0, strength)))
         speed *= loss

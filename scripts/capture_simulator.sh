@@ -25,7 +25,7 @@ wait_for() {
 capture() {
     local quality="$1" weather="$2" auto="$3" stem="$4" car="$5"
     xcrun simctl terminate "$device" "$bundle" 2>/dev/null || true
-    rm -f "$container/tmp/nd-frame-ready" "$container/tmp/nd-cadence.json"
+    rm -f "$container/tmp/nd-frame-ready" "$container/tmp/nd-cadence.json" "$container/tmp/nd-frame-captured"
     xcrun simctl launch "$device" "$bundle" -streetWeather "$weather" -streetTimeOfDay Daylight \
         -graphicsQuality "$quality" -carStyle "$car" -easyDrive "$auto" -screenRefractionEnabled YES -ndAutomatedDrive
     if ! wait_for "$container/tmp/nd-frame-ready"; then
@@ -34,6 +34,7 @@ capture() {
         return 1
     fi
     xcrun simctl io "$device" screenshot "$out/$stem.png"
+    touch "$container/tmp/nd-frame-captured"
     wait_for "$container/tmp/nd-cadence.json"
     cp "$container/tmp/nd-cadence.json" "$out/$stem.json"
     python3 - "$out/$stem.json" "$auto" <<'PY_CHECK'
@@ -60,17 +61,23 @@ capture ultra Rain YES ultra-rain 2
 
 # Record native simulator output in its own drive, after the timing checks.
 xcrun simctl terminate "$device" "$bundle"
-rm -f "$container/tmp/nd-demo-ready" "$container/tmp/nd-demo-start"
+rm -f "$container/tmp/nd-demo-ready" "$container/tmp/nd-demo-start" "$container/tmp/nd-demo-finished"
 xcrun simctl launch "$device" "$bundle" -streetWeather Dry -streetTimeOfDay Daylight \
     -graphicsQuality cinematic -carStyle 0 -easyDrive YES -ndAutomatedDrive -ndHandlingDemo
 wait_for "$container/tmp/nd-demo-ready"
 movie="$out/waterfront-drive.mov"
-xcrun simctl io "$device" recordVideo --codec=h264 "$movie" &
+recordlog="$container/tmp/nd-recorder.log"
+xcrun simctl io "$device" recordVideo --codec=h264 "$movie" >"$recordlog" 2>&1 &
 recorder=$!
 trap 'kill -INT "$recorder" 2>/dev/null || true' EXIT
-sleep 1
+for ((i=0; i<90; i++)); do
+    [[ -f "$recordlog" && "$(<"$recordlog")" == *"Recording started"* ]] && break
+    kill -0 "$recorder" 2>/dev/null || { cat "$recordlog" >&2; exit 1; }
+    sleep 1
+done
+[[ "$(<"$recordlog")" == *"Recording started"* ]]
 touch "$container/tmp/nd-demo-start"
-sleep 8
+wait_for "$container/tmp/nd-demo-finished"
 kill -INT "$recorder"
 wait "$recorder" || [[ -s "$movie" ]]
 trap - EXIT
