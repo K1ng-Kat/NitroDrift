@@ -57,3 +57,21 @@ PY_CHECK
 capture cinematic Dry NO daylight-chase 0
 capture balanced Dry YES easy-drive 1
 capture ultra Rain YES ultra-rain 2
+
+# Record native simulator output in its own drive, after the timing checks.
+xcrun simctl terminate "$device" "$bundle"
+rm -f "$container/tmp/nd-demo-ready" "$container/tmp/nd-demo-start"
+xcrun simctl launch "$device" "$bundle" -streetWeather Dry -streetTimeOfDay Daylight \
+    -graphicsQuality cinematic -carStyle 0 -easyDrive YES -ndAutomatedDrive -ndHandlingDemo
+wait_for "$container/tmp/nd-demo-ready"
+movie="$out/waterfront-drive.mov"
+xcrun simctl io "$device" recordVideo --codec=h264 "$movie" &
+recorder=$!
+trap 'kill -INT "$recorder" 2>/dev/null || true' EXIT
+sleep 1
+touch "$container/tmp/nd-demo-start"
+sleep 8
+kill -INT "$recorder"
+wait "$recorder" || [[ -s "$movie" ]]
+trap - EXIT
+test -s "$movie"

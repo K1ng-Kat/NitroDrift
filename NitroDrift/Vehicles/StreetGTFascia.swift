@@ -73,7 +73,7 @@ enum StreetGTFascia {
             let top = glass.convertPosition(SCNVector3(x, 1.8, z), from: chassis)
             let bottom = glass.convertPosition(SCNVector3(x, 0.7, z), from: chassis)
             guard let hit = glass.hitTestWithSegment(from: top, to: bottom,
-                                                     options: [.backFaceCulling: false]).first else { return nil }
+                                                     options: [SCNHitTestOption.backFaceCulling.rawValue: false]).first else { return nil }
             return chassis.convertPosition(hit.localCoordinates, from: hit.node)
         }
 
