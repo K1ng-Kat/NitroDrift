@@ -158,6 +158,20 @@ enum CityVisuals {
     private static let daylightSky = makeSky(.day)
     private static let midnightSky = makeSky(.night)
 
+    private static let dayCube: [UIImage]? = {
+        let images = ["px","nx","py","ny","pz","nz"].compactMap { face -> UIImage? in
+            guard let url = Bundle.main.url(forResource: "day-sky-" + face, withExtension: "jpg",
+                                            subdirectory: "Assets.scnassets/Environment") else { return nil }
+            return UIImage(contentsOfFile: url.path)
+        }
+        return images.count == 6 ? images : nil
+    }()
+
+    static func background(_ mode: StreetTimeOfDay) -> Any {
+        if mode == .day, let dayCube { return dayCube }
+        return sky(mode)
+    }
+
     static func sky(_ mode: StreetTimeOfDay = .sunset) -> UIImage {
         switch mode {
         case .sunset: return goldenSky

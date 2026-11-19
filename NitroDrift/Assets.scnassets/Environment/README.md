@@ -17,3 +17,7 @@ The daylight clear coat and windows reflect the Potsdamer Platz panorama by Greg
 - https://polyhaven.com/a/potsdamer_platz
 - https://polyhaven.com/a/pedestrian_overpass
 - https://polyhaven.com/license
+
+The six Daylight sky faces use the upper hemisphere of the CC0 Immenstädter Horn panorama, graded to match the haze over Quayside. Rebuild with `python3 scripts/bake_day_sky.py immenstadter_horn_1k.hdr`.
+
+- https://polyhaven.com/a/immenstadter_horn

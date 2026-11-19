@@ -99,7 +99,7 @@ final class DrivingWorld {
             }
             for asphalt in asphaltMaterials { asphalt.normal.intensity = wet ? 0.44 : 0.45 }
             scene.fogStartDistance = wet ? 100 : 150
-            scene.fogEndDistance = wet ? 330 : 440
+            scene.fogEndDistance = wet ? 390 : 780
         }
         if displayedTimeOfDay != session.timeOfDay {
             configureTimeOfDay(session.timeOfDay)
@@ -154,7 +154,7 @@ final class DrivingWorld {
         streetLampLights.isHidden = mode == .day
         AuthoredCity.setLighting(mode)
         let sky = CityVisuals.sky(mode)
-        scene.background.contents = sky
+        scene.background.contents = CityVisuals.background(mode)
         if mode == .night {
             scene.lightingEnvironment.contents = CityVisuals.urbanLightingProbe() ?? sky
         } else if let probe = Bundle.main.url(forResource: mode == .day ? "plaza-day" : "overpass-sunset",
@@ -216,7 +216,6 @@ final class DrivingWorld {
         directionalLight?.orthographicScale = 120
         directionalLight?.zFar = 260
         cinematicDetails.isHidden = quality == .balanced
-        distantCity.isHidden = quality == .balanced
         for fixture in cinematicFixtures { fixture.isHidden = !ultra }
     }
 
@@ -775,6 +774,7 @@ final class DrivingWorld {
             return Int((seed >> 33) % UInt64(limit))
         }
         for side in 0..<4 {
+            let edgeGroup = SCNNode()
             for index in 0..<34 {
                 let height = CGFloat(35 + next(95))
                 let width = CGFloat(14 + next(24))
@@ -788,8 +788,9 @@ final class DrivingWorld {
                     ? SCNVector3(axis, Float(height / 2), edge)
                     : SCNVector3(edge, Float(height / 2), axis)
                 node.castsShadow = false
-                distantCity.addChildNode(node)
+                edgeGroup.addChildNode(node)
             }
+            distantCity.addChildNode(edgeGroup.flattenedClone())
         }
     }
 
@@ -878,7 +879,7 @@ final class DrivingWorld {
         camera.camera?.screenSpaceAmbientOcclusionIntensity = 0.32
         camera.camera?.screenSpaceAmbientOcclusionRadius = 1.9
         camera.camera?.zNear = 0.08
-        camera.camera?.zFar = 500
+        camera.camera?.zFar = 840
         camera.position = SCNVector3(3.5, 4, 47)
         scene.rootNode.addChildNode(camera)
     }
