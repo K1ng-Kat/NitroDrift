@@ -1,40 +1,117 @@
-import Foundation
 import SceneKit
 import UIKit
 
-/// Optional hand-authored environment tiles, kept separate from driving logic.
-/// Tile meshes are visual-only: the existing 150m street grid still owns physics,
-/// collision limits, checkpoints, traffic navigation and the minimap.
+/// Shared building meshes, one foreground bridge and instanced street palms.
 enum AuthoredCity {
     private static let folder = "Assets.scnassets/City"
+    private static let glazing = SCNMaterial()
+    private static let silver = SCNMaterial()
+    private static var skylineGlazing: [Int: SCNMaterial] = [:]
 
-    /// Every tile is 150 x 150 metres and centered on one city block.
-    /// The installer deliberately does not remove roads, curbs or gameplay nodes.
-    /// A missing or malformed asset simply leaves the procedural city visible.
-    @discardableResult
-    static func install(in scene: SCNScene) -> Bool {
-        guard let url = Bundle.main.url(forResource: "CityBlock", withExtension: "usdz", subdirectory: folder)
-                ?? Bundle.main.url(forResource: "CityBlock", withExtension: "scn", subdirectory: folder),
-              let source = try? SCNScene(url: url, options: nil),
-              !source.rootNode.childNodes.isEmpty else { return false }
+    private static func image(_ name: String, _ ext: String) -> UIImage? {
+        guard let url = Bundle.main.url(forResource: name, withExtension: ext, subdirectory: folder) else { return nil }
+        return UIImage(contentsOfFile: url.path)
+    }
 
-        let root = SCNNode()
-        root.name = "authored-city-tiles"
-        // An authored CityBlock asset uses metres, Y-up, and origin at block center.
-        // Road surfaces should be omitted so the existing road's wet/dry
-        // material and traffic handling are preserved.
-        for x in [-375.0, -225.0, -75.0, 75.0, 225.0, 375.0] {
-            for z in [-375.0, -225.0, -75.0, 75.0, 225.0, 375.0] {
-                let tile = SCNNode()
-                tile.name = "block-\(Int(x))-\(Int(z))"
-                for child in source.rootNode.childNodes {
-                    tile.addChildNode(child.clone())
-                }
-                tile.position = SCNVector3(Float(x), 0, Float(z))
-                root.addChildNode(tile)
+    private static func prepareGlazing() {
+        let color = image("facade-day", "jpg"), lit = image("facade-lit", "png")
+        for (index, mat) in [glazing, silver].enumerated() {
+            mat.lightingModel = .physicallyBased
+            mat.diffuse.contents = color
+            mat.emission.contents = lit
+            mat.roughness.contents = index == 0 ? 0.22 : 0.16
+            mat.metalness.contents = index == 0 ? 0.38 : 0.61
+            for channel in [mat.diffuse, mat.emission] {
+                channel.wrapS = .repeat
+                channel.wrapT = .repeat
+                channel.mipFilter = .linear
+                channel.maxAnisotropy = 4
             }
         }
-        scene.rootNode.addChildNode(root)
+    }
+
+    static func skylineMaterial(for band: Int) -> SCNMaterial {
+        if let material = skylineGlazing[band] { return material }
+        let base = band.isMultiple(of: 2) ? glazing : silver
+        guard let material = base.copy() as? SCNMaterial else { return base }
+        let tiling = SCNMatrix4MakeScale(Float(2 + band % 3), Float(4 + band * 2), 1)
+        material.diffuse.contentsTransform = tiling
+        material.emission.contentsTransform = tiling
+        material.multiply.contents = UIColor(white: 0.71 + CGFloat(band) * 0.065, alpha: 1)
+        skylineGlazing[band] = material
+        return material
+    }
+
+    static func setLighting(_ time: StreetTimeOfDay) {
+        let intensity: CGFloat = time == .night ? 0.76 : time == .sunset ? 0.16 : 0.015
+        for mat in [glazing, silver] + Array(skylineGlazing.values) { mat.emission.intensity = intensity }
+    }
+
+    private static func load(_ name: String) -> SCNNode? {
+        for ext in ["usdz", "scn", "dae"] {
+            guard let url = Bundle.main.url(forResource: name, withExtension: ext, subdirectory: folder),
+                  let asset = try? SCNScene(url: url, options: nil), !asset.rootNode.childNodes.isEmpty else { continue }
+            asset.rootNode.enumerateChildNodes { node, _ in
+                guard let mesh = node.geometry else { return }
+                mesh.materials = mesh.materials.map { mat in
+                    let role = (mat.name ?? node.name ?? "").lowercased()
+                    if role.contains("silverglass") { return silver }
+                    if role.contains("glass") { return glazing }
+                    mat.lightingModel = .physicallyBased
+                    if role.contains("steel") || role.contains("brass") {
+                        mat.metalness.contents = 0.73; mat.roughness.contents = 0.34
+                    } else if role.contains("water") {
+                        mat.roughness.contents = 0.17; mat.metalness.contents = 0.34
+                        mat.normal.contents = CityVisuals.rainNormalMap()
+                        mat.normal.intensity = 0.13
+                        mat.normal.wrapS = .repeat
+                        mat.normal.wrapT = .repeat
+                    } else if role.contains("lamps") {
+                        mat.emission.contents = UIColor(red: 1, green: 0.75, blue: 0.43, alpha: 1)
+                    } else {
+                        mat.roughness.contents = 0.76
+                        if role.contains("foliage") || role.contains("leaflit") { mat.isDoubleSided = true }
+                    }
+                    return mat
+                }
+            }
+            return asset.rootNode
+        }
+        return nil
+    }
+
+    @discardableResult
+    static func install(in scene: SCNScene) -> Bool {
+        prepareGlazing()
+        if let bridge = load("QuaysideBridge") { scene.rootNode.addChildNode(bridge.clone()) }
+        if let palm = load("QuaysidePalm") {
+            for (i,z) in [-128,-106,-47,-22,21,53,91,123].enumerated() {
+                for side in [-1,1] {
+                    let tree = palm.clone()
+                    tree.position = SCNVector3(Float(side)*17.1,0,Float(z+side*2))
+                    tree.eulerAngles.y = Float(i*5+side)*0.78
+                    scene.rootNode.addChildNode(tree)
+                }
+            }
+        }
+        let tiles = ["CityBlock","CityBlock0","CityBlock1","CityBlock2"].compactMap(load).filter {
+            let b = $0.boundingBox
+            return b.min.x >= -62 && b.max.x <= 62 && b.min.z >= -62 && b.max.z <= 62
+        }
+        guard !tiles.isEmpty else { return false }
+        for xi in 0..<6 {
+            for zi in 0..<6 {
+                let tile = tiles[(xi*7+zi)%tiles.count].clone()
+                tile.position = SCNVector3(Float(xi*150-375),0,Float(zi*150-375))
+                if (xi+zi).isMultiple(of: 2) { tile.eulerAngles.y = .pi }
+                // Set the waterfront blocks back on the west side of the opening straight.
+                if xi == 2 && (zi == 2 || zi == 3) {
+                    tile.scale = SCNVector3(0.79, zi == 2 ? 0.68 : 0.84, 0.83)
+                    tile.eulerAngles.y += .pi/2
+                }
+                scene.rootNode.addChildNode(tile)
+            }
+        }
         return true
     }
 }

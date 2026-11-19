@@ -18,65 +18,25 @@ final class StreetWeather {
     private var cinematic = false
     private var ultra = false
 
-    /// Uses SceneKit surface inputs; applied only to local puddles / road water.
-    /// Perturbed normals are evaluated in the correct tangent basis.
-    /// Animated light refraction is *approximated* by a varying transparent
-    /// water layer. It does not sample the background framebuffer.
-    private static let rippleShader = """
-    #pragma transparent
-    #pragma body
-    float2 uv = _surface.diffuseTexcoord;
-    float t = u_time;
-    float2 q = uv * 9.0;
-    float2 moving = q + float2(t * 0.72, -t * 0.53);
-    float rippleA = sin(length(moving - float2(3.2, 2.1)) * 11.5 - t * 3.4);
-    float rippleB = sin(length(q - float2(7.1, 6.3)) * 14.0 - t * 4.1);
-    float waveX = sin(q.x * 3.3 + t * 1.4) * cos(q.y * 2.1 - t * 1.1);
-    float waveY = cos(q.y * 4.1 - t * 1.8) * sin(q.x * 2.7 + t * 0.8);
-    float2 slope = float2(waveX + rippleA * 0.28, waveY + rippleB * 0.28);
-    float3 localNormal = normalize(float3(slope.x * 0.09, slope.y * 0.09, 1.0));
-    float3x3 basis = float3x3(_surface.tangent,
-                             _surface.bitangent,
-                             _surface.geometryNormal);
-    _surface.normal = normalize(basis * localNormal);
-
-    float viewCos = clamp(dot(normalize(-_surface.position.xyz),
-                              normalize(_surface.normal)), 0.0, 1.0);
-    float fresnel = 0.020 + 0.980 * pow(1.0 - viewCos, 5.0);
-    float2 edgeUV = (uv - 0.5) * float2(1.0, 1.0);
-    float edge = 1.0 - smoothstep(0.32, 0.53, length(edgeUV));
-    float sparkle = 0.50 + 0.50 * (waveX * waveY);
-    _surface.diffuse.rgb = mix(_surface.diffuse.rgb * float3(0.70, 0.80, 0.89),
-                               float3(0.17, 0.33, 0.47),
-                               clamp(fresnel * 0.40 + sparkle * 0.045, 0.0, 1.0));
-    _surface.diffuse.a *= edge * (0.38 + 0.48 * fresnel);
-    """
-
-    /// Ripple normals on the reflection layer (no edge fade: the floor is a
-    /// long road patch). Reflection still comes from SCNFloor's render pass.
-    private static let filmShader = """
-    #pragma transparent
-    #pragma body
-    float2 uv = _surface.diffuseTexcoord * 20.0;
-    float t = u_time;
-    float2 wave = float2(
-        sin(uv.x * 2.1 + t * 1.0) * cos(uv.y * 2.8 - t * 0.86),
-        cos(uv.y * 2.6 + t * 1.24) * sin(uv.x * 2.9 + t * 0.72));
-    float3 waterNormal = normalize(float3(wave * 0.035, 1.0));
-    float3x3 basis = float3x3(_surface.tangent,
-                             _surface.bitangent,
-                             _surface.geometryNormal);
-    _surface.normal = normalize(basis * waterNormal);
-    float facing = clamp(dot(normalize(-_surface.position.xyz),
-                             normalize(_surface.normal)), 0.0, 1.0);
-    float schlick = 0.020 + 0.980 * pow(1.0 - facing, 5.0);
-    float2 border = smoothstep(float2(0.0), float2(0.12),
-                               _surface.diffuseTexcoord) *
-                    (1.0 - smoothstep(float2(0.88), float2(1.0),
-                                       _surface.diffuseTexcoord));
-    float softEdge = border.x * border.y;
-    _surface.diffuse.a = (0.12 + schlick * 0.28) * softEdge;
-    """
+    private static func applyRipples(to material: SCNMaterial, tiling: Float, strength: CGFloat) {
+        let normal = material.normal
+        normal.contents = CityVisuals.rainNormalMap()
+        normal.intensity = strength
+        normal.wrapS = .repeat
+        normal.wrapT = .repeat
+        let start = SCNMatrix4MakeScale(tiling, tiling, 1)
+        var end = start
+        end.m41 = 1
+        end.m42 = -1
+        normal.contentsTransform = start
+        let flow = CABasicAnimation(keyPath: "contentsTransform")
+        flow.fromValue = NSValue(scnMatrix4: start)
+        flow.toValue = NSValue(scnMatrix4: end)
+        flow.duration = 5.5
+        flow.repeatCount = .infinity
+        normal.addAnimation(flow, forKey: "water-flow")
+        material.fresnelExponent = 3
+    }
 
     init(scene: SCNScene) {
         let emitter = SCNBox(width: 40, height: 1.0, length: 45, chamferRadius: 0)
@@ -88,6 +48,7 @@ final class StreetWeather {
         rain.particleLifeSpan = 0.91
         rain.particleVelocity = 26
         rain.particleVelocityVariation = 5
+        rain.particleImage = CityVisuals.droplet
         rain.particleSize = 0.025
         rain.particleColor = UIColor(red: 0.71, green: 0.79, blue: 0.99, alpha: 0.48)
         rain.blendMode = .alpha
@@ -109,7 +70,7 @@ final class StreetWeather {
         film.metalness.contents = 0.0 // Water is a dielectric.
         film.writesToDepthBuffer = false
         film.isDoubleSided = true
-        film.shaderModifiers = [.surface: Self.filmShader]
+        Self.applyRipples(to: film, tiling: 9, strength: 0.11)
 
         let floor = SCNFloor()
         floor.width = 21.2
@@ -152,10 +113,11 @@ final class StreetWeather {
         water.roughness.contents = 0.05
         water.metalness.contents = 0.0
         water.transparency = 0.67
-        water.transparencyMode = .dualLayer
+        water.transparent.contents = CityVisuals.droplet
+        water.transparencyMode = .aOne
         water.writesToDepthBuffer = false
         water.isDoubleSided = true
-        water.shaderModifiers = [.surface: Self.rippleShader]
+        Self.applyRipples(to: water, tiling: 2, strength: 0.19)
 
         var nodes: [SCNNode] = []
         var masks: [SCNNode] = []
@@ -193,7 +155,7 @@ final class StreetWeather {
         waterMasks = masks
     }
 
-    func configure(wet: Bool, quality: GraphicsQuality) {
+    func configure(wet: Bool, quality: GraphicsQuality, mask: Bool = false) {
         isWet = wet
         let cinematic = quality != .balanced
         ultra = quality == .ultra
@@ -206,9 +168,9 @@ final class StreetWeather {
         mirrorFloor.reflectionResolutionScaleFactor = ultra ? 0.55 : cinematic ? 0.34 : 0.17
         for (index, puddle) in puddles.enumerated() {
             puddle.isHidden = !wet || (!cinematic && index.isMultiple(of: 2))
-            waterMasks[index].isHidden = !wet || !ultra
+            waterMasks[index].isHidden = !wet || !ultra || !mask
         }
-        mirrorMask.isHidden = !wet || !ultra
+        mirrorMask.isHidden = !wet || !ultra || !mask
     }
 
     func update(x: Double, z: Double) {

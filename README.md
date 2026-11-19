@@ -1,5 +1,13 @@
 # NitroDrift 🏎️
 
+## Quayside iPhone build
+
+The opening boulevard crosses a canal under six steel arches. The player car uses a wheel-aligned chase camera, physically based bodywork, six garage finishes per model, and photographic city reflections. Slide the left steering pad through center to change direction, hold Drift to slide, and tap Nitro for a short burst. Easy Drive in Pause or Settings supplies the throttle.
+
+Each iPhone build packages all 84 streets as mipmapped ASTC textures. Each 126 m segment has a unique 1024 × 5120 paint and asphalt map plus matching normal and roughness channels. The full set takes 1,174,421,136 bytes. The renderer streams the closest three, five or seven segments for Balanced, Cinematic or Ultra. It samples GPU timing to adjust resolution during a race.
+
+Open `NitroDrift.xcodeproj` in Xcode and choose your Apple development team to run on an iPhone. The first build bakes and caches the road art. Pressing Run in Xcode installs the same full street pack as Release. An existing prebuilt pack can be supplied with the `ND_ROAD_PACK` build setting. The CI workflow builds an unsigned iPhone IPA, checks its exact size and records iPhone simulator gameplay and display intervals.
+
 ## Xcode project organization
 
 The app uses Xcode's file-system-synchronized `NitroDrift` group, so these are real folders that appear automatically in the Project Navigator. Swift source is organized as:

@@ -61,6 +61,7 @@
                 10AA00000000000000000008 /* Sources */,
                 10AA00000000000000000007 /* Frameworks */,
                 10AA00000000000000000009 /* Resources */,
+                10AA00000000000000000011 /* Bundle full-resolution streets */,
             );
             buildRules = (
             );
@@ -119,6 +120,21 @@
             runOnlyForDeploymentPostprocessing = 0;
         };
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+        10AA00000000000000000011 /* Bundle full-resolution streets */ = {
+            isa = PBXShellScriptBuildPhase;
+            alwaysOutOfDate = 1;
+            buildActionMask = 2147483647;
+            files = ();
+            inputPaths = ();
+            outputPaths = ();
+            name = "Bundle full-resolution streets";
+            runOnlyForDeploymentPostprocessing = 0;
+            shellPath = /bin/bash;
+            shellScript = "bash \"$SRCROOT/scripts/bundle_road_pack.sh\"";
+        };
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
         10AA00000000000000000008 /* Sources */ = {
@@ -180,6 +196,8 @@
                 GENERATE_INFOPLIST_FILE = YES;
                 INFOPLIST_KEY_CFBundleDisplayName = NitroDrift;
                 INFOPLIST_KEY_LSRequiresIPhoneOS = YES;
+                INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+                INFOPLIST_KEY_UIStatusBarHidden = YES;
                 INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
                 INFOPLIST_KEY_UIApplicationSupportsDocumentBrowser = NO;
                 INFOPLIST_KEY_UIRequiresFullScreen = YES;
@@ -187,6 +205,7 @@
                 INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
                 IPHONEOS_DEPLOYMENT_TARGET = 17.0;
                 MARKETING_VERSION = 0.8.0;
+                ENABLE_USER_SCRIPT_SANDBOXING = NO;
                 PRODUCT_BUNDLE_IDENTIFIER = com.kingkat.NitroDrift;
                 PRODUCT_NAME = "$(TARGET_NAME)";
                 SDKROOT = iphoneos;
@@ -209,12 +228,15 @@
                 GENERATE_INFOPLIST_FILE = YES;
                 INFOPLIST_KEY_CFBundleDisplayName = NitroDrift;
                 INFOPLIST_KEY_LSRequiresIPhoneOS = YES;
+                INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+                INFOPLIST_KEY_UIStatusBarHidden = YES;
                 INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
                 INFOPLIST_KEY_UIRequiresFullScreen = YES;
                 INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
                 INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
                 IPHONEOS_DEPLOYMENT_TARGET = 17.0;
                 MARKETING_VERSION = 0.8.0;
+                ENABLE_USER_SCRIPT_SANDBOXING = NO;
                 PRODUCT_BUNDLE_IDENTIFIER = com.kingkat.NitroDrift;
                 PRODUCT_NAME = "$(TARGET_NAME)";
                 SDKROOT = iphoneos;

@@ -27,7 +27,7 @@ enum CityVisuals {
     }
 
     static func roadMaterial(horizontal: Bool = false) -> SCNMaterial {
-        let image = texture(size: 256) { context, size in
+        let image = packagedMap("diffuse") ?? texture(size: 256) { context, size in
             UIColor(red: 0.10, green: 0.105, blue: 0.125, alpha: 1).setFill()
             context.fill(CGRect(origin: .zero, size: size))
             var seed: UInt32 = 0x9AE310
@@ -51,7 +51,7 @@ enum CityVisuals {
             context.strokePath()
         }
         let mat = SCNMaterial()
-        mat.diffuse.contents = packagedMap("diffuse") ?? image
+        mat.diffuse.contents = image
         mat.diffuse.wrapS = .repeat
         mat.diffuse.wrapT = .repeat
         // Physical texel scale should not change drastically with road
@@ -75,6 +75,22 @@ enum CityVisuals {
         return mat
     }
 
+    static let droplet: UIImage = {
+        let size = CGSize(width: 96, height: 96)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = false
+        return UIGraphicsImageRenderer(size: size, format: format).image { render in
+            let colors = [UIColor.white.cgColor, UIColor.white.withAlphaComponent(0.78).cgColor,
+                          UIColor.white.withAlphaComponent(0).cgColor] as CFArray
+            guard let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                                            colors: colors, locations: [0, 0.56, 1]) else { return }
+            let center = CGPoint(x: 48, y: 48)
+            render.cgContext.drawRadialGradient(gradient, startCenter: center, startRadius: 0,
+                                                endCenter: center, endRadius: 47, options: [])
+        }
+    }()
+
     private static let shadowImage: UIImage = {
         let size = CGSize(width: 256, height: 512)
         let renderer = UIGraphicsImageRenderer(size: size)
@@ -82,12 +98,12 @@ enum CityVisuals {
             let cg = render.cgContext
             cg.clear(CGRect(origin: .zero, size: size))
             let colors = [
-                UIColor.black.withAlphaComponent(0.54).cgColor,
-                UIColor.black.withAlphaComponent(0.21).cgColor,
+                UIColor.black.withAlphaComponent(0.91).cgColor,
+                UIColor.black.withAlphaComponent(0.55).cgColor,
                 UIColor.black.withAlphaComponent(0).cgColor
             ] as CFArray
             if let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
-                                         colors: colors, locations: [0, 0.53, 1]) {
+                                         colors: colors, locations: [0, 0.60, 1]) {
                 cg.saveGState()
                 cg.translateBy(x: size.width * 0.5, y: size.height * 0.5)
                 cg.scaleBy(x: size.width * 0.44, y: size.height * 0.46)
@@ -100,7 +116,28 @@ enum CityVisuals {
         }
     }()
 
-    static func contactShadow() -> UIImage { shadowImage }
+    private static let shadowPlane: SCNPlane = {
+        let material = SCNMaterial()
+        material.diffuse.contents = shadowImage
+        material.lightingModel = .constant
+        material.writesToDepthBuffer = false
+        material.blendMode = .alpha
+        let plane = SCNPlane(width: 3.5, height: 6.0)
+        plane.firstMaterial = material
+        return plane
+    }()
+
+    static func vehicleShadow() -> SCNNode {
+        let node = SCNNode(geometry: shadowPlane)
+        node.name = "ground-contact"
+        // The top of the streamed road is at 0.092 m.
+        node.position.y = 0.115
+        node.eulerAngles.x = -.pi / 2
+        node.castsShadow = false
+        node.renderingOrder = 3
+        node.categoryBitMask = 2
+        return node
+    }
 
     // Cached PBR normal maps. Small periodic sine derivatives produce seamless
     // tiled road microdetail without shipping copyrighted texture files.
@@ -158,6 +195,20 @@ enum CityVisuals {
     private static let daylightSky = makeSky(.day)
     private static let midnightSky = makeSky(.night)
 
+    private static let dayCube: [UIImage]? = {
+        let images = ["px","nx","py","ny","pz","nz"].compactMap { face -> UIImage? in
+            guard let url = Bundle.main.url(forResource: "day-sky-" + face, withExtension: "jpg",
+                                            subdirectory: "Assets.scnassets/Environment") else { return nil }
+            return UIImage(contentsOfFile: url.path)
+        }
+        return images.count == 6 ? images : nil
+    }()
+
+    static func background(_ mode: StreetTimeOfDay) -> Any {
+        if mode == .day, let dayCube { return dayCube }
+        return sky(mode)
+    }
+
     static func sky(_ mode: StreetTimeOfDay = .sunset) -> UIImage {
         switch mode {
         case .sunset: return goldenSky
@@ -172,8 +223,8 @@ enum CityVisuals {
             switch mode {
             case .day:
                 skyStops = [
-                    UIColor(red: 0.075, green: 0.28, blue: 0.60, alpha: 1),
-                    UIColor(red: 0.27, green: 0.58, blue: 0.85, alpha: 1),
+                    UIColor(red: 0.28, green: 0.54, blue: 0.79, alpha: 1),
+                    UIColor(red: 0.49, green: 0.74, blue: 0.89, alpha: 1),
                     UIColor(red: 0.75, green: 0.85, blue: 0.94, alpha: 1)
                 ]
             case .sunset:

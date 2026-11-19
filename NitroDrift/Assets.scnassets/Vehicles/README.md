@@ -12,5 +12,6 @@ than NitroDrift's previous primitives. Respect asset licensing if swapping them.
 The binary files are installed once in GitHub Actions using
 scripts/install_cc0_cars.py. If the remote CDN is unavailable, the original
 game remains playable using the built-in modeled car, and the installer must
-be retried. Import orientation is normalized by bounding box and authored
-body meshes may not be independently recolorable unless named "paint".
+be retried. Import orientation follows the wheel hubs. Unrigged replacement models can supply a mesh named `paint` for garage colors.
+
+The three bundled cars use their source wheel hubs to establish forward, up and steering pivots. Each garage finish has a matched 2K body atlas with two tapered deck stripes and retains the source material detail. A separate UV mask drives brake illumination. To rebuild the finishes from the bundled models, run `python3 scripts/bake_vehicle_finishes.py` with NumPy, Pillow and OpenUSD's Python bindings.

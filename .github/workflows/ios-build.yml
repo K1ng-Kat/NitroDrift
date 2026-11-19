@@ -41,51 +41,64 @@ jobs:
               assert "VERSION = 2;" in merged.read_text()
               assert marker.is_file(), "Other local changes must retain recovery backups"
           PY
+      - name: Validate authored city geometry
+        run: python3 scripts/validate_city_tiles.py
       - name: Physics smoke tests
         run: |
           swiftc NitroDrift/Gameplay/CarDynamics.swift scripts/PhysicsSmokeTest.swift -o "$RUNNER_TEMP/physics-smoke"
           "$RUNNER_TEMP/physics-smoke"
-      - name: Build for iOS Simulator
-        run: |
-          set -o pipefail
-          xcodebuild \
-            -project NitroDrift.xcodeproj \
-            -target NitroDrift \
-            -configuration Debug \
-            -sdk iphonesimulator \
-            -destination 'generic/platform=iOS Simulator' \
-            CODE_SIGNING_ALLOWED=NO build
-
-      - name: Launch Ultra Rain in iPhone simulator
-        if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[visual]')
-        shell: bash
+      - name: Restore baked road textures
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/NitroDriftArt
+          key: nd-road-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/bake_roads.py', 'scripts/prepare_road_pack.sh', 'NitroDrift/Assets.scnassets/Surfaces/asphalt_*.jpg') }}
+      - name: Prepare full-resolution road artwork
         run: |
           set -euo pipefail
-          DEVICE="$(xcrun simctl list devices available --json | python3 -c '
-          import json,sys
-          devices=json.load(sys.stdin)["devices"]
-          for items in devices.values():
-              for d in items:
-                  if d.get("isAvailable") and "iPhone" in d.get("name",""):
-                      print(d["udid"])
-                      sys.exit(0)
-          ')"
-          if [[ -z "$DEVICE" ]]; then
-            echo "No installed iPhone runtime; compile is still checked."
-            exit 0
-          fi
-          xcrun simctl boot "$DEVICE"
-          xcrun simctl bootstatus "$DEVICE" -b
-          xcrun simctl install "$DEVICE" "$PWD/build/Debug-iphonesimulator/NitroDrift.app"
-          xcrun simctl launch "$DEVICE" com.kingkat.NitroDrift \
-            -streetWeather rain -graphicsQuality ultra -screenRefractionEnabled YES -ndAutomatedDrive
-          sleep 10
-          xcrun simctl io "$DEVICE" screenshot "$RUNNER_TEMP/nitro-ultra-rain.png"
-      - name: Save rendered screenshot
-        if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[visual]')
+          pack="$(bash scripts/prepare_road_pack.sh)"
+          echo "ND_ROAD_PACK=$pack" >> "$GITHUB_ENV"
+      - name: Build full iPhone release
+        run: |
+          set -euo pipefail
+          xcodebuild -project NitroDrift.xcodeproj -target NitroDrift -configuration Release \
+            -sdk iphoneos CODE_SIGNING_ALLOWED=NO SYMROOT="$RUNNER_TEMP/nd-build" ND_ROAD_PACK="$ND_ROAD_PACK" build
+          mkdir -p "$RUNNER_TEMP/nd-package/Payload"
+          mv "$RUNNER_TEMP/nd-build/Release-iphoneos/NitroDrift.app" "$RUNNER_TEMP/nd-package/Payload/"
+          cd "$RUNNER_TEMP/nd-package"
+          plutil -extract UILaunchScreen xml1 -o /dev/null Payload/NitroDrift.app/Info.plist
+          /usr/bin/zip -q -r -n .ndroad:.usdz:.jpg:.png:.hdr "$RUNNER_TEMP/NitroDrift-unsigned.ipa" Payload
+          python3 - <<'PY_SIZE'
+          from pathlib import Path
+          import os, json
+          app = Path("Payload/NitroDrift.app")
+          ipa = Path(os.environ["RUNNER_TEMP"]) / "NitroDrift-unsigned.ipa"
+          size = {"appBytes": sum(p.stat().st_size for p in app.rglob("*") if p.is_file()),
+                  "ipaBytes": ipa.stat().st_size, "roadSegments": len(list((app/"RoadPack").glob("*.ndroad")))}
+          assert size["appBytes"] >= 1024**3 and size["ipaBytes"] >= 1024**3 and size["roadSegments"] == 84, size
+          print(size)
+          (ipa.parent/"build-size.json").write_text(json.dumps(size, indent=2))
+          PY_SIZE
+      - name: Save iPhone release
         uses: actions/upload-artifact@v4
         with:
-          name: nitro-ultra-rain-screenshot
-          path: ${{ runner.temp }}/nitro-ultra-rain.png
-          if-no-files-found: ignore
+          name: NitroDrift-iPhone-unsigned
+          path: |
+            ${{ runner.temp }}/NitroDrift-unsigned.ipa
+            ${{ runner.temp }}/build-size.json
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7
+      - name: Build and drive on the simulator
+        run: |
+          set -euo pipefail
+          xcodebuild -project NitroDrift.xcodeproj -target NitroDrift -configuration Debug \
+            -sdk iphonesimulator CODE_SIGNING_ALLOWED=NO SYMROOT="$RUNNER_TEMP/nd-build" ND_ROAD_PACK="$ND_ROAD_PACK" build
+          bash scripts/capture_simulator.sh "$RUNNER_TEMP/nd-build/Debug-iphonesimulator/NitroDrift.app" "$RUNNER_TEMP/race-captures"
+      - name: Save gameplay captures and timing
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gameplay-and-timing
+          path: ${{ runner.temp }}/race-captures
+          if-no-files-found: warn
           retention-days: 7

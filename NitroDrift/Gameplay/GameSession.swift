@@ -82,12 +82,14 @@ enum CarStyle: Int, CaseIterable, Identifiable {
 
 struct DriverInput {
     var left = false, right = false, gas = false, brake = false, nitro = false
+    var touchSteering = 0.0, boostPulse = 0.0
     var handbrake = false
     var analogSteering = 0.0, analogThrottle = 0.0, analogBrake = 0.0
     var gamepadHandbrake = false, gamepadNitro = false
     mutating func clear() {
         left = false; right = false; gas = false; brake = false
         nitro = false; handbrake = false
+        touchSteering = 0; boostPulse = 0
         analogSteering = 0; analogThrottle = 0; analogBrake = 0
         gamepadHandbrake = false; gamepadNitro = false
     }
@@ -114,6 +116,7 @@ final class GameSession: ObservableObject {
     @Published var lateralG = 0.0
     @Published var tireGrip = 0.0
     @Published var nitro = 100.0
+    @Published var isBoosting = false
     @Published var driftScore = 0
     @Published var cash: Int
     @Published var engineLevel: Int
@@ -125,8 +128,10 @@ final class GameSession: ObservableObject {
     @Published var ownedCarStyles: Set<Int>
     @Published var cameraMode = 0
     @Published var isPaused = false
-    @Published var sprintTime = 90.0
-    @Published var sprintDistance = 0.0
+    // The simulation keeps precise times and distances. The HUD samples them
+    // when the existing telemetry update is published.
+    var sprintTime = 90.0
+    var sprintDistance = 0.0
     @Published var bestSprintDistance: Int
     @Published var raceResult: RaceResult?
     @Published var hapticsEnabled: Bool
@@ -143,7 +148,7 @@ final class GameSession: ObservableObject {
     @Published var level: Int
     @Published var wins: Int
     @Published var bestCircuitTime: Double
-    @Published var raceElapsed = 0.0
+    var raceElapsed = 0.0
     @Published var damage = 0.0
     @Published var policeNearby = false
     @Published var playerX = 0.0
@@ -161,7 +166,9 @@ final class GameSession: ObservableObject {
 
     init() {
         let s = UserDefaults.standard
-        timeOfDay = StreetTimeOfDay(rawValue: s.string(forKey: "streetTimeOfDay") ?? "") ?? .sunset
+        // The primary driving presentation is a bright, clean daytime racer.
+        // Players can still switch to Golden Hour or Night in Settings.
+        timeOfDay = StreetTimeOfDay(rawValue: s.string(forKey: "streetTimeOfDay") ?? "") ?? .day
         weather = StreetWeatherMode(rawValue: s.string(forKey: "streetWeather") ?? "") ?? .dry
         graphicsQuality = GraphicsQuality(rawValue: s.string(forKey: "graphicsQuality") ?? "") ?? (ProcessInfo.processInfo.physicalMemory >= 4_000_000_000 ? .cinematic : .balanced)
         screenRefractionEnabled = s.object(forKey: "screenRefractionEnabled") as? Bool ?? true
@@ -182,7 +189,7 @@ final class GameSession: ObservableObject {
         wins = s.integer(forKey: "wins")
         bestCircuitTime = s.double(forKey: "bestCircuitTime")
         handlingAssist = s.object(forKey: "handlingAssist") as? Bool ?? true
-        easyDrive = s.object(forKey: "easyDrive") as? Bool ?? false
+        easyDrive = s.bool(forKey: "easyDrive")
     }
 
     func start(_ selection: DriveMode) {
@@ -196,6 +203,7 @@ final class GameSession: ObservableObject {
         lateralG = 0
         tireGrip = 0
         nitro = 100
+        isBoosting = false
         driftScore = 0
         raceCheckpoint = 0
         raceCheckpointTotal = 0
@@ -330,6 +338,11 @@ final class GameSession: ObservableObject {
         store.set(upgraded, forKey: key)
         feedback(.medium)
         return true
+    }
+
+    func pressNitro(_ pressed: Bool) {
+        input.nitro = pressed
+        if pressed && !isPaused { input.boostPulse = 1.25 }
     }
 
     func togglePause() {
