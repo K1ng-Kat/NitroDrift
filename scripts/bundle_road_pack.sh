@@ -1,9 +1,8 @@
 #!/bin/bash
 set -euo pipefail
-# Release exports always include the full city. Debug can use the same pack.
+# Xcode Run and Release exports both install the same offline city.
 pack="${ND_ROAD_PACK:-}"
 if [[ -z "$pack" ]]; then
-    [[ "$CONFIGURATION" == "Release" ]] || exit 0
     pack="$(bash "$SRCROOT/scripts/prepare_road_pack.sh")"
 fi
 dest="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/RoadPack"
