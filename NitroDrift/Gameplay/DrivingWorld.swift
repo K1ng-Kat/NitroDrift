@@ -283,6 +283,17 @@ final class DrivingWorld {
                                   assist: session.handlingAssist, boosting: canNitro,
                                   surfaceGrip: session.weather == .rain ? 0.73 : 1.0)
         }
+        let roadX = abs(dynamics.x - (dynamics.x / 150.0).rounded() * 150.0)
+        let roadZ = abs(dynamics.z - (dynamics.z / 150.0).rounded() * 150.0)
+        if roadX > 10.9 && roadZ > 10.9 {
+            // Soft collision with the curb/building perimeter. Keep heading
+            // intact but do not teleport or propel through solid blocks.
+            dynamics.x = previousX
+            dynamics.z = previousZ
+            dynamics.impact(strength: 0.60)
+            session.damage = min(100, session.damage + 0.08)
+        }
+
         // Opposite portals have identical geometry at the seam, 37 m inside each tunnel.
         let seam = dynamics.crossCitySeam()
         if seam.x != 0 || seam.z != 0 {
@@ -293,16 +304,6 @@ final class DrivingWorld {
             cameraLookTarget.z += dz
             cameraAnchor?.x += dx
             cameraAnchor?.z += dz
-        }
-        let roadX = abs(dynamics.x - (dynamics.x / 150.0).rounded() * 150.0)
-        let roadZ = abs(dynamics.z - (dynamics.z / 150.0).rounded() * 150.0)
-        if roadX > 10.9 && roadZ > 10.9 {
-            // Soft collision with the curb/building perimeter. Keep heading
-            // intact but do not teleport or propel through solid blocks.
-            dynamics.x = previousX
-            dynamics.z = previousZ
-            dynamics.impact(strength: 0.60)
-            session.damage = min(100, session.damage + 0.08)
         }
 
         positionX = dynamics.x
